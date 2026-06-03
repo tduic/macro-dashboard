@@ -4,6 +4,11 @@
 
 :root {
   color-scheme: dark;
+  /* Reusable safe-area-aware insets so JS doesn't need env() literals. */
+  --safe-top: env(safe-area-inset-top);
+  --safe-right: env(safe-area-inset-right);
+  --safe-bottom: env(safe-area-inset-bottom);
+  --safe-left: env(safe-area-inset-left);
 }
 
 html,
@@ -12,26 +17,62 @@ body,
   height: 100%;
 }
 
+html {
+  /* Bounce-free over-scroll inside the PWA standalone shell on iOS. */
+  overscroll-behavior-y: none;
+}
+
 body {
   margin: 0;
   background-color: #0a0e14;
   color: #c7d0d9;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /* Native-looking system stack — uses SF on Apple, Inter on Linux/web etc. */
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+    Inter, Roboto, ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent; /* no blue flash on tap */
+  /* Avoid font-boosting on iOS landscape rotation. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
-/* thin terminal-style scrollbars */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* Buttons stay tap-friendly without forcing a layout-affecting min-height. */
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
 }
-::-webkit-scrollbar-track {
-  background: #0a0e14;
+
+/* Reduce motion respect. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0ms !important;
+    transition-duration: 0ms !important;
+  }
 }
-::-webkit-scrollbar-thumb {
-  background: #1f2733;
-  border-radius: 4px;
+
+/* thin terminal-style scrollbars — desktop only */
+@media (pointer: fine) {
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0a0e14;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #1f2733;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #2b3744;
+  }
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #2b3744;
+
+/* Standalone PWA tweak: status-bar overlays content, so push body content
+ * down by the top safe-area inset. The header itself uses the same env() so
+ * its sticky offset stays correct. */
+@media (display-mode: standalone) {
+  body {
+    background-color: #0a0e14;
+  }
 }

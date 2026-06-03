@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0f141b"/>
+      <stop offset="1" stop-color="#0a0e14"/>
+    </linearGradient>
+    <linearGradient id="line" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#26d07c"/>
+      <stop offset="1" stop-color="#7bff9b"/>
+    </linearGradient>
+  </defs>
+  <rect width="180" height="180" rx="40" fill="url(#bg)"/>
+  <rect x="14" y="14" width="152" height="152" rx="32" fill="none" stroke="#1f2733" stroke-width="2"/>
+  <polyline
+    points="22,128 50,108 74,134 100,72 126,90 158,40"
+    fill="none" stroke="url(#line)" stroke-width="9"
+    stroke-linecap="round" stroke-linejoin="round"
+  />
+  <circle cx="158" cy="40" r="9" fill="#26d07c"/>
+  <text x="22" y="158" fill="#5b6772" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="14" font-weight="700" letter-spacing="2">MACRO·DESK</text>
+</svg>

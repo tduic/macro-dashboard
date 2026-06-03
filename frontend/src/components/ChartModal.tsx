@@ -15,6 +15,7 @@ import { RANGES, type EventItem, type Indicator, type NewsItem, type RangeKey } 
 import { formatValue } from "../format";
 import { findRelatedNews } from "../indicator-keywords";
 import { getEventTypeForIndicator } from "../indicator-events";
+import { useIsCompact } from "../useMediaQuery";
 import { NewsRow } from "./NewsFeed";
 
 type Tab = "chart" | "news";
@@ -51,6 +52,7 @@ export function ChartModal({
   const [tab, setTab] = useState<Tab>("chart");
   const [range, setRange] = useState<RangeKey>("1Y");
   const [compareId, setCompareId] = useState<string | null>(null);
+  const isCompact = useIsCompact();
 
   // News query uses the same key as the rail's, so this is a free read.
   const newsQuery = useQuery({
@@ -72,13 +74,31 @@ export function ChartModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-2 sm:p-6"
+      className={`fixed inset-0 z-50 ${
+        isCompact
+          ? "flex items-end justify-center bg-black/70"
+          : "flex items-center justify-center bg-black/70 p-2 sm:p-6"
+      }`}
       onClick={onClose}
     >
       <div
-        className="flex max-h-[92vh] w-full max-w-3xl flex-col rounded-lg border border-chrome-border bg-chrome-panel shadow-2xl"
+        className={
+          isCompact
+            ? "flex max-h-[92vh] w-full flex-col rounded-t-2xl border-t border-chrome-border bg-chrome-panel shadow-2xl"
+            : "flex max-h-[92vh] w-full max-w-3xl flex-col rounded-lg border border-chrome-border bg-chrome-panel shadow-2xl"
+        }
+        style={
+          isCompact
+            ? { paddingBottom: "env(safe-area-inset-bottom)" }
+            : undefined
+        }
         onClick={(e) => e.stopPropagation()}
       >
+        {isCompact && (
+          <div className="flex justify-center pt-2" aria-hidden="true">
+            <div className="h-1 w-10 rounded-full bg-chrome-border" />
+          </div>
+        )}
         {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b border-chrome-border p-4">
           <div>

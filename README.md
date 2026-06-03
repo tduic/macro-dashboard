@@ -14,11 +14,20 @@ A local, single-machine full-stack app for watching global macro markets. Two jo
    when you click a card.
 
 **Synoptic reads:**
-- A **macro regime strip** at the top distills the dashboard into a 1-line read
+- A **"Today" mover strip** at the very top shows the three biggest 1-day movers
+  with their driver headlines (clickable to the article).
+- A **macro regime strip** under it distills the dashboard into a 1-line read
   ("Risk-On · Yields down · Dollar offered · Crude bid …") with a net-bias label.
 - A **Grid / Heatmap** toggle in the header swaps the category grid for a single
   sorted, color-graded view (1W / MoM / YTD selector) so you can absorb relative
   cross-asset performance in one glance.
+- Every card carries an **inline sparkline**, a **1Y / 2Y percentile gauge** with
+  a hot/cold tick (95 = at year-high, 5 = at year-low), an **anomaly flag** ⚠
+  when the latest move is > ±2σ vs the trailing 30-day distribution, and a
+  **stale-data badge** if the data hasn't refreshed within the expected cadence.
+- A **UST yield-curve panel** below the Rates row plots the full 11-tenor curve
+  (1M → 30Y) with toggleable historical overlays (1W ago / 1M ago / 3M ago /
+  prior year-end) so you can read the *shape* and how it has shifted.
 - **Chart modal overlays** mark FOMC rate decisions (gold) and major release
   dates (CPI / PCE / PPI / NFP / Retail / GDP, color-coded) on every historical
   chart, turning a price line into a narrative.
@@ -122,6 +131,7 @@ Base URL: `http://127.0.0.1:8000`
 | GET | `/api/news` | deduped, reverse-chron news `[{title, source, url, publishedAt, category, topics}]` — `topics` is a list of world-topic tags (Fed, Markets, Economy, Energy, Tech, China, Geopolitics, Crypto, Earnings) auto-classified from each headline |
 | GET | `/api/calendar` | next ~14 days of upcoming FRED releases — Employment Situation (NFP), CPI, PPI, Retail Sales, PCE, GDP, weekly Initial Jobless Claims (empty/disabled without a key) |
 | GET | `/api/events?from=YYYY-MM-DD&to=YYYY-MM-DD` | macro-event dates in a window for chart overlays: hardcoded FOMC rate-decision dates + past/future FRED release dates (NFP, CPI, PPI, Retail, PCE, GDP) |
+| GET | `/api/curves/ust` | UST yield curve snapshot — current curve + comparison snapshots (1W ago, 1M ago, 3M ago, prior year-end). Empty without a FRED key. |
 | POST | `/api/refresh` | clear all caches (the header **↻ refresh** button) |
 
 **Indicator shape:**
@@ -141,7 +151,8 @@ Base URL: `http://127.0.0.1:8000`
     "mom": { "abs": 35.0, "pct": 5.4 },   // ~21 trading days
     "ytd": { "abs": 77.65, "pct": 11.39 } // vs last close of prior year
   },
-  "sparkline": [ /* last ~30 daily closes, or ~12 monthly prints for releases */ ]
+  "sparkline": [ /* last ~30 daily closes, or ~12 monthly prints for releases */ ],
+  "percentile": { "value": 78.2, "window": "1Y" } // where current sits in trailing window
 }
 ```
 For **yields** (`changeType: "bps"`), `change.*.abs` is the move in **basis points**
@@ -157,13 +168,14 @@ these "vs prior" and "YoY"); `meta.priorPrint` holds the previous level.
 |----------|--------|-------------|
 | **Equities** | yfinance | **Indices (default):** ^GSPC, ^IXIC, ^DJI, ^RUT, ^VIX · **ETFs (toggle):** SPY, QQQ, DIA, IWM · VIX always shows |
 | **Global Equities** | yfinance | FTSE 100 (^FTSE), DAX (^GDAXI), Euro Stoxx 50 (^STOXX50E), Nikkei 225 (^N225), Hang Seng (^HSI), Shanghai Composite (000001.SS) |
-| **Rates** | FRED | DGS2, DGS10, DGS30, T10Y2Y (2s10s), T10YIE (10Y breakeven / inflation exp.), DFII10 (10Y real yield / TIPS), DFF (fed funds), ECBDFR (ECB deposit rate), IUDSOIA (BoE / SONIA), IR3TIB01JPM156N (BoJ 3M interbank), ICSA (initial claims) |
+| **Rates** | FRED | DGS2, DGS10, DGS30, T10Y2Y (2s10s), T5YIE (5Y breakeven), T10YIE (10Y breakeven), T5YIFR (5y5y forward), DFII10 (10Y real yield / TIPS), DFF (fed funds), ECBDFR (ECB deposit rate), IUDSOIA (BoE / SONIA), IR3TIB01JPM156N (BoJ 3M interbank), ICSA (initial claims) — plus the **UST yield-curve panel** spanning DGS1MO → DGS30 |
 | **Credit** | yfinance | HYG (high-yield ETF), LQD (investment-grade ETF) — proxies for credit-risk appetite |
 | **FX** | yfinance (FRED fallback) | DXY (`DX-Y.NYB`, falls back to FRED `DTWEXBGS`), EURUSD, USDJPY, GBPUSD |
 | **Energy & Metals** | yfinance | WTI (CL=F), Brent (BZ=F), NatGas (NG=F), Gold (GC=F), Silver (SI=F), Copper (HG=F) |
 | **Ags / Softs** | yfinance | Corn (ZC=F), Wheat (ZW=F), Soybeans (ZS=F), Sugar (SB=F), Coffee (KC=F), Cocoa (CC=F) |
 | **Economic Data** | FRED | CPI, Core CPI, PCE, Core PCE, Payrolls, Unemployment, Real GDP, Retail Sales, PPI |
 | **Crypto** | yfinance | BTC-USD, ETH-USD |
+| **Ratios** | derived | Gold/Silver, Copper/Gold (growth), BTC/Gold (digital-vs-real), ETH/BTC (crypto risk appetite) |
 
 ### Change math
 - **WoW** = vs ~5 trading days ago · **MoM** = vs ~21 trading days ago ·
@@ -216,6 +228,36 @@ The indicator → event-type map lives in
 
 ---
 
+## Responsive design — desktop vs iPhone
+
+The same React app renders two distinct experiences depending on viewport.
+
+**Desktop / `≥1024px`** — terminal-style dense board:
+- Wide multi-column grid (up to 5 cards wide on `xl`).
+- Sticky news rail on the right (always visible while you scroll).
+- Chart opens as a centered floating modal you can click-outside to close.
+- Hover states everywhere; muted chrome only emerges on intent.
+
+**Mobile / iPad portrait / iPhone (`<1024px`)** — native-feeling iOS shell:
+- Header collapses to title + view-toggle + a circular ↻ icon.
+- Single-column card stack with comfortable 44pt tap targets.
+- A **fixed bottom tab bar** swaps between **Markets** and **News** views
+  (`▦ Markets` · `📰 News` with a live count badge).
+- The chart opens as a **bottom sheet** that slides up from below with a
+  drag-handle pill — feels native, not modal.
+- Full **safe-area inset** support (Dynamic Island / home-bar respected via
+  `viewport-fit=cover` + `env(safe-area-inset-*)`).
+- PWA manifest + apple-touch icon + status-bar style — **Share → Add to
+  Home Screen** gives you a real launcher icon and standalone launch with
+  no Safari chrome. Theme color matches the app background, so the iOS
+  status bar blends in.
+- System font stack — uses SF Pro on iOS / macOS for that native look.
+- No tap-highlight blue, no rubber-band over-scroll, `prefers-reduced-motion`
+  honored.
+
+The breakpoint is `(max-width: 1023px)`; iPad landscape gets the desktop
+layout, iPad portrait + all phones get the mobile shell.
+
 ## Design choices & notes
 
 - **Single fetch per ticker.** Each yfinance ticker is pulled once (5y daily,
@@ -252,12 +294,25 @@ backend/
   requirements.txt
   .env.example
 frontend/            Vite + React + TS + Tailwind + Recharts
+  public/
+    manifest.webmanifest    PWA manifest (Add to Home Screen)
+    apple-touch-icon.svg    iOS launcher icon
+    favicon.svg
   src/
-    components/      IndicatorCard, ChartModal (tabbed Chart/News),
-                     NewsFeed (with topic tabs), CalendarPanel
-    indicator-keywords.ts   indicator -> news-search keywords map
-    topics.ts        world-topic display order
-    types.ts         response shapes (mirrors backend)
+    components/      IndicatorCard, Sparkline, PercentileBar, ChartModal
+                     (tabbed Chart/News, bottom sheet on mobile),
+                     NewsFeed (with topic tabs), CalendarPanel, RegimeStrip,
+                     DailySummary, HeatmapGrid, YieldCurvePanel
+    indicator-keywords.ts   indicator -> news-search keywords
+    indicator-events.ts     indicator -> release event-type map
+    daily-summary.ts         top-movers + driver-headline synthesizer
+    anomaly.ts               ±2σ z-score detector for the ⚠ flag
+    staleness.ts             freshness classifier for the "Xd old" badge
+    regime.ts                regime-strip read derivation
+    heatmap-color.ts         heatmap palette
+    topics.ts                world-topic display order
+    useMediaQuery.ts         compact-viewport hook (iPhone vs desktop)
+    types.ts                 response shapes (mirrors backend)
 Makefile             make setup / dev / backend / frontend
 package.json         optional root `npm run dev` (concurrently)
 README.md
@@ -335,6 +390,22 @@ For LAN access without Tailscale, substitute the host's Wi-Fi IP
 (`ipconfig getifaddr en0`) — works when both devices share a Wi-Fi.
 
 ---
+
+## Roadmap
+
+Things deliberately deferred but tracked for later.
+
+- **Proper deploy.** Today the app runs on the host machine and is reachable
+  remotely via Tailscale Serve (`https://<machine>.<tailnet>.ts.net/`). To be
+  truly always-on without the host being awake, split the deploy:
+  - **Frontend** → Vercel (Vite static build, free tier).
+  - **Backend** → Fly.io or Railway (single Python container, the existing
+    cachetools TTL cache survives because it's a long-running process).
+  - Optional custom domain (`macro.<your>.com`) + Cloudflare Access or a
+    Bearer token check at the API boundary since the URL becomes public.
+- Drawdown / running-max indicators on each card.
+- Bond MOVE / curve volatility surfaces (no clean free source today).
+- Estimates vs actuals on the calendar (would need a paid feed).
 
 ## Troubleshooting
 
