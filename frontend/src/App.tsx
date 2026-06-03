@@ -7,6 +7,7 @@ import { IndicatorCard } from "./components/IndicatorCard";
 import { ChartModal } from "./components/ChartModal";
 import { NewsFeed } from "./components/NewsFeed";
 import { CalendarPanel } from "./components/CalendarPanel";
+import { RegimeStrip } from "./components/RegimeStrip";
 
 const CATEGORY_ORDER = [
   "Equities",
@@ -163,6 +164,7 @@ export default function App() {
               </div>
             ) : (
               <>
+                <RegimeStrip indicators={indicators} />
                 <CalendarPanel fredEnabled={fredEnabled} />
                 {grouped.map(({ category, items }) => (
                   <section key={category}>
