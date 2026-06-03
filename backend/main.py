@@ -51,7 +51,7 @@ VALID_RANGES = {"1W", "1M", "3M", "6M", "YTD", "1Y", "5Y"}
 
 # Category display order for the frontend grid.
 CATEGORY_ORDER = [
-    "Equities", "Rates", "FX", "Energy & Metals",
+    "Equities", "Global Equities", "Rates", "FX", "Energy & Metals",
     "Ags / Softs", "Economic Data", "Crypto",
 ]
 

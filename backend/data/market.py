@@ -67,6 +67,13 @@ MARKET_SPECS: list[MarketSpec] = [
     MarketSpec("IWM", "Russell 2000 (IWM)", "Equities", "IWM", unit="$", group="etf"),
     # Always shown
     MarketSpec("VIX", "Volatility (VIX)", "Equities", "^VIX", unit="pts"),
+    # Global equity indices (non-US). Always shown — no group filter applies.
+    MarketSpec("FTSE", "FTSE 100 (UK)", "Global Equities", "^FTSE", unit="pts"),
+    MarketSpec("GDAXI", "DAX (Germany)", "Global Equities", "^GDAXI", unit="pts"),
+    MarketSpec("STOXX50E", "Euro Stoxx 50", "Global Equities", "^STOXX50E", unit="pts"),
+    MarketSpec("N225", "Nikkei 225 (Japan)", "Global Equities", "^N225", unit="pts"),
+    MarketSpec("HSI", "Hang Seng (HK)", "Global Equities", "^HSI", unit="pts"),
+    MarketSpec("SHCOMP", "Shanghai Composite", "Global Equities", "000001.SS", unit="pts"),
     # FX
     MarketSpec("DXY", "US Dollar Index (DXY)", "FX", "DX-Y.NYB", unit="pts"),
     MarketSpec("EURUSD", "EUR/USD", "FX", "EURUSD=X", unit=""),
