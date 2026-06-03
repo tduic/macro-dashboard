@@ -132,16 +132,33 @@ function TabButton({
   );
 }
 
-// Event style by type. FOMC gets a stronger accent; all others uniform.
-const EVENT_COLOR: Record<string, string> = {
-  FOMC: "#e0b340",
-  CPI: "#5b6772",
-  PCE: "#5b6772",
-  PPI: "#5b6772",
-  NFP: "#5b6772",
-  RETAIL: "#5b6772",
-  GDP: "#5b6772",
+// Event styling. Only FOMC (rare, market-moving) gets an inline label;
+// release dates render as faint vertical ticks so the chart stays readable.
+// FOMC stands out (gold, labeled). Other release dates are visible but
+// quieter — small color tint per release type, no inline label so a busy
+// year-long window doesn't pile up overlapping text.
+const EVENT_STYLE: Record<
+  string,
+  { stroke: string; strokeWidth: number; opacity: number; dash: string; label: boolean }
+> = {
+  FOMC:   { stroke: "#e0b340", strokeWidth: 1.25, opacity: 1.00, dash: "3 3", label: true  },
+  CPI:    { stroke: "#7b9aff", strokeWidth: 1,    opacity: 0.55, dash: "2 4", label: false },
+  PCE:    { stroke: "#7b9aff", strokeWidth: 1,    opacity: 0.55, dash: "2 4", label: false },
+  PPI:    { stroke: "#7b9aff", strokeWidth: 1,    opacity: 0.45, dash: "2 4", label: false },
+  NFP:    { stroke: "#9a7bff", strokeWidth: 1,    opacity: 0.55, dash: "2 4", label: false },
+  RETAIL: { stroke: "#9a7bff", strokeWidth: 1,    opacity: 0.45, dash: "2 4", label: false },
+  GDP:    { stroke: "#26d07c", strokeWidth: 1,    opacity: 0.55, dash: "2 4", label: false },
 };
+const DEFAULT_EVENT_STYLE = EVENT_STYLE.CPI;
+
+function LegendDot({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="inline-block h-[8px] w-[8px] rounded-sm" style={{ background: color }} />
+      <span>{label}</span>
+    </span>
+  );
+}
 
 function snapEventsToPoints(
   events: EventItem[],
@@ -233,6 +250,15 @@ function ChartView({
         </button>
       </div>
 
+      {showEvents && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pt-1 font-mono text-[10px] text-chrome-muted">
+          <LegendDot color="#e0b340" label="FOMC" />
+          <LegendDot color="#7b9aff" label="CPI / PCE / PPI" />
+          <LegendDot color="#9a7bff" label="NFP / Retail" />
+          <LegendDot color="#26d07c" label="GDP" />
+        </div>
+      )}
+
       <div className="h-[320px] w-full p-3">
         {isLoading ? (
           <div className="flex h-full items-center justify-center text-sm text-chrome-muted">
@@ -248,7 +274,7 @@ function ChartView({
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={points} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+            <LineChart data={points} margin={{ top: 22, right: 12, bottom: 4, left: 4 }}>
               <CartesianGrid stroke="#1f2733" vertical={false} />
               <XAxis
                 dataKey="date"
@@ -264,21 +290,24 @@ function ChartView({
                 tickFormatter={(v) => formatValue(Number(v), ind.unit)}
               />
               <Tooltip content={<ChartTooltip unit={ind.unit} />} />
-              {snapped.map((e, i) => (
-                <ReferenceLine
-                  key={`${e.date}-${e.type}-${i}`}
-                  x={e.date}
-                  stroke={EVENT_COLOR[e.type] ?? "#5b6772"}
-                  strokeWidth={1}
-                  strokeDasharray="2 3"
-                  label={{
-                    value: e.type,
-                    position: "top",
-                    fill: EVENT_COLOR[e.type] ?? "#5b6772",
-                    fontSize: 9,
-                  }}
-                />
-              ))}
+              {snapped.map((e, i) => {
+                const st = EVENT_STYLE[e.type] ?? DEFAULT_EVENT_STYLE;
+                return (
+                  <ReferenceLine
+                    key={`${e.date}-${e.type}-${i}`}
+                    x={e.date}
+                    stroke={st.stroke}
+                    strokeOpacity={st.opacity}
+                    strokeWidth={st.strokeWidth}
+                    strokeDasharray={st.dash}
+                    label={
+                      st.label
+                        ? { value: e.type, position: "top", fill: st.stroke, fontSize: 10 }
+                        : undefined
+                    }
+                  />
+                );
+              })}
               <Line
                 type="monotone"
                 dataKey="value"
