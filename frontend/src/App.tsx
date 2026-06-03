@@ -26,8 +26,8 @@ function EquityViewToggle({
   onChange: (v: EquityView) => void;
 }) {
   const opts: { id: EquityView; label: string; hint: string }[] = [
-    { id: "etf", label: "ETFs", hint: "SPY · QQQ · DIA · IWM" },
     { id: "index", label: "Indices", hint: "^GSPC · ^IXIC · ^DJI · ^RUT" },
+    { id: "etf", label: "ETFs", hint: "SPY · QQQ · DIA · IWM" },
   ];
   return (
     <div
@@ -73,12 +73,12 @@ export default function App() {
   const qc = useQueryClient();
   const [selected, setSelected] = useState<Indicator | null>(null);
 
-  // Equities toggle: ETF proxies (SPY/QQQ/DIA/IWM) vs actual index levels
-  // (^GSPC/^IXIC/^DJI/^RUT). Persisted in localStorage; default = etf.
+  // Equities toggle: actual index levels (^GSPC/^IXIC/^DJI/^RUT) vs ETF
+  // proxies (SPY/QQQ/DIA/IWM). Persisted in localStorage; default = index.
   const [equityView, setEquityView] = useState<EquityView>(() => {
-    if (typeof window === "undefined") return "etf";
+    if (typeof window === "undefined") return "index";
     const v = window.localStorage.getItem(EQUITY_VIEW_STORAGE);
-    return v === "index" ? "index" : "etf";
+    return v === "etf" ? "etf" : "index";
   });
   useEffect(() => {
     window.localStorage.setItem(EQUITY_VIEW_STORAGE, equityView);

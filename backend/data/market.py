@@ -53,16 +53,18 @@ class MarketSpec:
 
 # ---- The tracked market indicators (yfinance) -----------------------------
 MARKET_SPECS: list[MarketSpec] = [
-    # Equities — ETF proxies (default view)
-    MarketSpec("SPY", "S&P 500 (SPY)", "Equities", "SPY", unit="$", group="etf"),
-    MarketSpec("QQQ", "Nasdaq 100 (QQQ)", "Equities", "QQQ", unit="$", group="etf"),
-    MarketSpec("IWM", "Russell 2000 (IWM)", "Equities", "IWM", unit="$", group="etf"),
-    MarketSpec("DIA", "Dow Jones (DIA)", "Equities", "DIA", unit="$", group="etf"),
-    # Equities — actual index levels (toggleable view)
+    # Equities — actual index levels (default view)
+    # Order matches the conventional reading order (S&P -> Nasdaq -> Dow -> Russell)
+    # and is mirrored exactly by the ETF group below so cards don't reshuffle on toggle.
     MarketSpec("GSPC", "S&P 500 (Index)", "Equities", "^GSPC", unit="pts", group="index"),
     MarketSpec("IXIC", "Nasdaq Composite", "Equities", "^IXIC", unit="pts", group="index"),
     MarketSpec("DJI", "Dow Jones (Index)", "Equities", "^DJI", unit="pts", group="index"),
     MarketSpec("RUT", "Russell 2000 (Index)", "Equities", "^RUT", unit="pts", group="index"),
+    # Equities — ETF proxies (alternate view, toggle in UI)
+    MarketSpec("SPY", "S&P 500 (SPY)", "Equities", "SPY", unit="$", group="etf"),
+    MarketSpec("QQQ", "Nasdaq 100 (QQQ)", "Equities", "QQQ", unit="$", group="etf"),
+    MarketSpec("DIA", "Dow Jones (DIA)", "Equities", "DIA", unit="$", group="etf"),
+    MarketSpec("IWM", "Russell 2000 (IWM)", "Equities", "IWM", unit="$", group="etf"),
     # Always shown
     MarketSpec("VIX", "Volatility (VIX)", "Equities", "^VIX", unit="pts"),
     # FX
