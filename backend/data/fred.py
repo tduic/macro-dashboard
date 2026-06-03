@@ -142,6 +142,18 @@ def _fetch_series(series_id: str) -> Optional[pd.Series]:
         return None
 
 
+def _series_percentile(s: pd.Series, n: int, label: str) -> Optional[dict]:
+    """Where the last value sits vs the last n observations, as a 0–100 rank."""
+    if len(s) < 10:
+        return None
+    window = s.iloc[-n:]
+    if len(window) < 10:
+        return None
+    curr = float(s.iloc[-1])
+    rank = (window <= curr).sum() / len(window) * 100
+    return {"value": round(float(rank), 1), "window": label}
+
+
 def _nearest_back(s: pd.Series, days: int) -> Optional[float]:
     """Value at-or-before (last_date - days)."""
     if s.empty:
@@ -196,6 +208,7 @@ def build_rate_indicator(spec: RateSpec) -> Optional[dict]:
         }
 
     spark = [round(float(v), 4) for v in s.iloc[-30:].tolist()]
+    pct = _series_percentile(s, 252, "1Y")
     return {
         "id": spec.id,
         "label": spec.label,
@@ -207,6 +220,7 @@ def build_rate_indicator(spec: RateSpec) -> Optional[dict]:
         "source": f"FRED:{spec.series_id}",
         "change": change,
         "sparkline": spark,
+        "percentile": pct,
     }
 
 
@@ -225,6 +239,7 @@ def build_release_indicator(spec: ReleaseSpec) -> Optional[dict]:
         return {"abs": round(curr - base, 2), "pct": round((curr - base) / base * 100, 2)}
 
     spark = [round(float(v), 4) for v in s.iloc[-12:].tolist()]
+    rank = _series_percentile(s, 24, "2Y")
     return {
         "id": spec.id,
         "label": spec.label,
@@ -242,6 +257,7 @@ def build_release_indicator(spec: ReleaseSpec) -> Optional[dict]:
         },
         "meta": {"priorPrint": prior, "changeLabels": {"wow": "vs prior", "ytd": "YoY"}},
         "sparkline": spark,
+        "percentile": rank,
     }
 
 
@@ -304,6 +320,7 @@ def get_broad_dollar_fallback() -> Optional[dict]:
         return {"abs": round(curr - base, 3), "pct": round((curr - base) / base * 100, 2)}
 
     spark = [round(float(v), 4) for v in s.iloc[-30:].tolist()]
+    rank = _series_percentile(s, 252, "1Y")
     return {
         "id": "DXY",
         "label": "US Dollar Index (Broad, FRED)",
@@ -319,6 +336,7 @@ def get_broad_dollar_fallback() -> Optional[dict]:
             "ytd": pct(_prior_year_value(s)),
         },
         "sparkline": spark,
+        "percentile": rank,
     }
 
 

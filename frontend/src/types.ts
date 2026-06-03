@@ -29,6 +29,9 @@ export interface Indicator {
   // Last ~30 daily closes (or ~12 monthly prints for releases) — rendered as
   // an inline sparkline on each card.
   sparkline?: number[];
+  // Where the current value sits in its trailing window (0–100 rank).
+  // window is "1Y" for daily series, "2Y" for monthly release series.
+  percentile?: { value: number; window: string } | null;
   meta?: {
     priorPrint?: number | null;
     changeLabels?: Partial<Record<"wow" | "mom" | "ytd", string>>;

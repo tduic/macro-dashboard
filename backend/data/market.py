@@ -159,6 +159,22 @@ def _pct(curr: float, base: Optional[float]) -> Optional[dict]:
 
 
 SPARKLINE_DAILY_POINTS = 30  # ~6 trading weeks for daily series
+PERCENTILE_WINDOW_DAILY = 252  # ~1 trading year
+
+
+def _percentile_rank(series: "pd.Series", n: int, label: str) -> Optional[dict]:
+    """Where the last value sits vs the last n observations, as a 0–100 rank.
+
+    Returns {"value": 78.2, "window": "1Y"} or None if not enough data.
+    """
+    if len(series) < 10:
+        return None
+    window = series.iloc[-n:]
+    if len(window) < 10:
+        return None
+    curr = float(series.iloc[-1])
+    rank = (window <= curr).sum() / len(window) * 100
+    return {"value": round(float(rank), 1), "window": label}
 
 
 def build_market_indicator(spec: MarketSpec) -> Optional[dict]:
@@ -175,6 +191,7 @@ def build_market_indicator(spec: MarketSpec) -> Optional[dict]:
         "ytd": _pct(curr, _prior_year_close(s)),
     }
     spark = [round(float(v), 4) for v in s.iloc[-SPARKLINE_DAILY_POINTS:].tolist()]
+    pct = _percentile_rank(s, PERCENTILE_WINDOW_DAILY, "1Y")
     return {
         "id": spec.id,
         "label": spec.label,
@@ -187,6 +204,7 @@ def build_market_indicator(spec: MarketSpec) -> Optional[dict]:
         "source": f"yfinance:{used}",
         "change": change,
         "sparkline": spark,
+        "percentile": pct,
     }
 
 

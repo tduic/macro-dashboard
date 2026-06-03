@@ -1,6 +1,7 @@
 import type { Indicator } from "../types";
 import { changeLabels, deltaColor, formatDelta, formatValue } from "../format";
 import { Sparkline } from "./Sparkline";
+import { PercentileBar } from "./PercentileBar";
 
 function DeltaCell({
   label,
@@ -55,6 +56,9 @@ export function IndicatorCard({
         <DeltaCell label={labels.mom} ind={ind} slot="mom" />
         <DeltaCell label={labels.ytd} ind={ind} slot="ytd" />
       </div>
+      {ind.percentile && (
+        <PercentileBar pct={ind.percentile.value} window={ind.percentile.window} />
+      )}
     </button>
   );
 }
