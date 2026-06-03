@@ -56,6 +56,7 @@ export interface NewsItem {
   url: string;
   publishedAt: string | null;
   category: string;
+  topics: string[];
 }
 
 export interface NewsResponse {

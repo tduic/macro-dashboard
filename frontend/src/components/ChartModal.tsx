@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   CartesianGrid,
@@ -10,8 +10,12 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "../api";
-import { RANGES, type Indicator, type RangeKey } from "../types";
+import { RANGES, type Indicator, type NewsItem, type RangeKey } from "../types";
 import { formatValue } from "../format";
+import { findRelatedNews } from "../indicator-keywords";
+import { NewsRow } from "./NewsFeed";
+
+type Tab = "chart" | "news";
 
 function ChartTooltip({ active, payload, unit }: any) {
   if (!active || !payload || !payload.length) return null;
@@ -31,21 +35,17 @@ export function ChartModal({
   ind: Indicator;
   onClose: () => void;
 }) {
+  const [tab, setTab] = useState<Tab>("chart");
   const [range, setRange] = useState<RangeKey>("1Y");
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["history", ind.id, range],
-    queryFn: () => api.history(ind.id, range),
-    staleTime: 60_000,
-  });
 
-  const points = data?.points ?? [];
-  const values = points.map((p) => p.value);
-  const min = values.length ? Math.min(...values) : 0;
-  const max = values.length ? Math.max(...values) : 1;
-  const pad = (max - min) * 0.08 || Math.abs(max) * 0.02 || 1;
-  const last = values.length ? values[values.length - 1] : 0;
-  const first = values.length ? values[0] : 0;
-  const lineColor = last >= first ? "#26d07c" : "#ff5c5c";
+  // News query uses the same key as the rail's, so this is a free read.
+  const newsQuery = useQuery({
+    queryKey: ["news"],
+    queryFn: api.news,
+    staleTime: 5 * 60_000,
+  });
+  const allNews: NewsItem[] = newsQuery.data?.items ?? [];
+  const related = useMemo(() => findRelatedNews(allNews, ind.id), [allNews, ind.id]);
 
   return (
     <div
@@ -56,6 +56,7 @@ export function ChartModal({
         className="flex max-h-[92vh] w-full max-w-3xl flex-col rounded-lg border border-chrome-border bg-chrome-panel shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b border-chrome-border p-4">
           <div>
             <div className="text-sm font-semibold text-white">{ind.label}</div>
@@ -75,66 +76,176 @@ export function ChartModal({
           </button>
         </div>
 
-        <div className="flex flex-wrap gap-1 px-4 pt-3">
-          {RANGES.map((r) => (
-            <button
-              key={r}
-              onClick={() => setRange(r)}
-              className={`rounded px-2.5 py-1 font-mono text-xs transition-colors ${
-                r === range
-                  ? "bg-chrome-text text-chrome-bg"
-                  : "border border-chrome-border text-chrome-muted hover:border-chrome-muted hover:text-white"
-              }`}
-            >
-              {r}
-            </button>
-          ))}
+        {/* Tabs */}
+        <div className="flex border-b border-chrome-border px-3 pt-2" role="tablist">
+          <TabButton id="chart" current={tab} onClick={setTab} label="Chart" />
+          <TabButton
+            id="news"
+            current={tab}
+            onClick={setTab}
+            label="Related News"
+            count={related.length}
+          />
         </div>
 
-        <div className="h-[320px] w-full p-3">
-          {isLoading ? (
-            <div className="flex h-full items-center justify-center text-sm text-chrome-muted">
-              loading…
-            </div>
-          ) : isError ? (
-            <div className="flex h-full items-center justify-center text-sm text-down">
-              failed to load history
-            </div>
-          ) : points.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-sm text-chrome-muted">
-              no data for this range
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={points} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
-                <CartesianGrid stroke="#1f2733" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fill: "#5b6772", fontSize: 10 }}
-                  minTickGap={48}
-                  stroke="#1f2733"
-                />
-                <YAxis
-                  domain={[min - pad, max + pad]}
-                  tick={{ fill: "#5b6772", fontSize: 10 }}
-                  width={56}
-                  stroke="#1f2733"
-                  tickFormatter={(v) => formatValue(Number(v), ind.unit)}
-                />
-                <Tooltip content={<ChartTooltip unit={ind.unit} />} />
-                <Line
-                  type="monotone"
-                  dataKey="value"
-                  stroke={lineColor}
-                  strokeWidth={1.6}
-                  dot={false}
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </div>
+        {tab === "chart" ? (
+          <ChartView ind={ind} range={range} onRangeChange={setRange} />
+        ) : (
+          <RelatedNewsView related={related} isLoading={newsQuery.isLoading} indId={ind.id} />
+        )}
       </div>
+    </div>
+  );
+}
+
+function TabButton({
+  id,
+  current,
+  onClick,
+  label,
+  count,
+}: {
+  id: Tab;
+  current: Tab;
+  onClick: (t: Tab) => void;
+  label: string;
+  count?: number;
+}) {
+  const active = id === current;
+  return (
+    <button
+      role="tab"
+      aria-selected={active}
+      onClick={() => onClick(id)}
+      className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 py-1.5 text-xs uppercase tracking-wide transition-colors ${
+        active
+          ? "border-chrome-text text-white"
+          : "border-transparent text-chrome-muted hover:text-white"
+      }`}
+    >
+      <span>{label}</span>
+      {count !== undefined && (
+        <span className="rounded bg-chrome-card px-1 py-0.5 font-mono text-[9px]">{count}</span>
+      )}
+    </button>
+  );
+}
+
+function ChartView({
+  ind,
+  range,
+  onRangeChange,
+}: {
+  ind: Indicator;
+  range: RangeKey;
+  onRangeChange: (r: RangeKey) => void;
+}) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["history", ind.id, range],
+    queryFn: () => api.history(ind.id, range),
+    staleTime: 60_000,
+  });
+
+  const points = data?.points ?? [];
+  const values = points.map((p) => p.value);
+  const min = values.length ? Math.min(...values) : 0;
+  const max = values.length ? Math.max(...values) : 1;
+  const pad = (max - min) * 0.08 || Math.abs(max) * 0.02 || 1;
+  const last = values.length ? values[values.length - 1] : 0;
+  const first = values.length ? values[0] : 0;
+  const lineColor = last >= first ? "#26d07c" : "#ff5c5c";
+
+  return (
+    <>
+      <div className="flex flex-wrap gap-1 px-4 pt-3">
+        {RANGES.map((r) => (
+          <button
+            key={r}
+            onClick={() => onRangeChange(r)}
+            className={`rounded px-2.5 py-1 font-mono text-xs transition-colors ${
+              r === range
+                ? "bg-chrome-text text-chrome-bg"
+                : "border border-chrome-border text-chrome-muted hover:border-chrome-muted hover:text-white"
+            }`}
+          >
+            {r}
+          </button>
+        ))}
+      </div>
+
+      <div className="h-[320px] w-full p-3">
+        {isLoading ? (
+          <div className="flex h-full items-center justify-center text-sm text-chrome-muted">
+            loading…
+          </div>
+        ) : isError ? (
+          <div className="flex h-full items-center justify-center text-sm text-down">
+            failed to load history
+          </div>
+        ) : points.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-sm text-chrome-muted">
+            no data for this range
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={points} margin={{ top: 8, right: 12, bottom: 4, left: 4 }}>
+              <CartesianGrid stroke="#1f2733" vertical={false} />
+              <XAxis
+                dataKey="date"
+                tick={{ fill: "#5b6772", fontSize: 10 }}
+                minTickGap={48}
+                stroke="#1f2733"
+              />
+              <YAxis
+                domain={[min - pad, max + pad]}
+                tick={{ fill: "#5b6772", fontSize: 10 }}
+                width={56}
+                stroke="#1f2733"
+                tickFormatter={(v) => formatValue(Number(v), ind.unit)}
+              />
+              <Tooltip content={<ChartTooltip unit={ind.unit} />} />
+              <Line
+                type="monotone"
+                dataKey="value"
+                stroke={lineColor}
+                strokeWidth={1.6}
+                dot={false}
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </>
+  );
+}
+
+function RelatedNewsView({
+  related,
+  isLoading,
+  indId,
+}: {
+  related: NewsItem[];
+  isLoading: boolean;
+  indId: string;
+}) {
+  return (
+    <div className="max-h-[420px] overflow-y-auto">
+      {isLoading ? (
+        <div className="p-4 text-sm text-chrome-muted">loading…</div>
+      ) : related.length === 0 ? (
+        <div className="p-4 text-sm text-chrome-muted">
+          No related news in the current feed for{" "}
+          <span className="font-mono">{indId}</span>. Try refreshing — the feed updates every ~10
+          minutes.
+        </div>
+      ) : (
+        <ul className="divide-y divide-chrome-border">
+          {related.map((it, i) => (
+            <NewsRow key={`${it.url}-${i}`} item={it} />
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
