@@ -4,13 +4,14 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
 import { api } from "../api";
-import { RANGES, type Indicator, type NewsItem, type RangeKey } from "../types";
+import { RANGES, type EventItem, type Indicator, type NewsItem, type RangeKey } from "../types";
 import { formatValue } from "../format";
 import { findRelatedNews } from "../indicator-keywords";
 import { NewsRow } from "./NewsFeed";
@@ -131,6 +132,36 @@ function TabButton({
   );
 }
 
+// Event style by type. FOMC gets a stronger accent; all others uniform.
+const EVENT_COLOR: Record<string, string> = {
+  FOMC: "#e0b340",
+  CPI: "#5b6772",
+  PCE: "#5b6772",
+  PPI: "#5b6772",
+  NFP: "#5b6772",
+  RETAIL: "#5b6772",
+  GDP: "#5b6772",
+};
+
+function snapEventsToPoints(
+  events: EventItem[],
+  pointDates: string[],
+): { date: string; type: string }[] {
+  if (!pointDates.length) return [];
+  const firstD = pointDates[0];
+  const lastD = pointDates[pointDates.length - 1];
+  const out: { date: string; type: string }[] = [];
+  for (const ev of events) {
+    if (ev.date < firstD || ev.date > lastD) continue;
+    // first point on or after the event date (binary search would be nicer but
+    // pointDates is bounded by chart range so this is fine)
+    let snap = pointDates.find((d) => d >= ev.date);
+    if (!snap) snap = lastD;
+    out.push({ date: snap, type: ev.type });
+  }
+  return out;
+}
+
 function ChartView({
   ind,
   range,
@@ -146,6 +177,8 @@ function ChartView({
     staleTime: 60_000,
   });
 
+  const [showEvents, setShowEvents] = useState(true);
+
   const points = data?.points ?? [];
   const values = points.map((p) => p.value);
   const min = values.length ? Math.min(...values) : 0;
@@ -155,9 +188,25 @@ function ChartView({
   const first = values.length ? values[0] : 0;
   const lineColor = last >= first ? "#26d07c" : "#ff5c5c";
 
+  const fromDate = points[0]?.date ?? "";
+  const toDate = points[points.length - 1]?.date ?? "";
+
+  const eventsQuery = useQuery({
+    queryKey: ["events", fromDate, toDate],
+    queryFn: () => api.events(fromDate, toDate),
+    enabled: showEvents && !!fromDate && !!toDate,
+    staleTime: 60 * 60_000, // events don't move within an hour
+  });
+
+  const snapped = useMemo(() => {
+    if (!showEvents) return [];
+    const evs = eventsQuery.data?.events ?? [];
+    return snapEventsToPoints(evs, points.map((p) => p.date));
+  }, [showEvents, eventsQuery.data, points]);
+
   return (
     <>
-      <div className="flex flex-wrap gap-1 px-4 pt-3">
+      <div className="flex flex-wrap items-center gap-1 px-4 pt-3">
         {RANGES.map((r) => (
           <button
             key={r}
@@ -171,6 +220,17 @@ function ChartView({
             {r}
           </button>
         ))}
+        <button
+          onClick={() => setShowEvents((v) => !v)}
+          className={`ml-auto rounded border px-2 py-1 font-mono text-[10px] uppercase tracking-wide transition-colors ${
+            showEvents
+              ? "border-chrome-text bg-chrome-text/10 text-chrome-text"
+              : "border-chrome-border text-chrome-muted hover:text-white"
+          }`}
+          title="Toggle FOMC + macro release date overlays"
+        >
+          Events {showEvents ? "on" : "off"}
+        </button>
       </div>
 
       <div className="h-[320px] w-full p-3">
@@ -204,6 +264,21 @@ function ChartView({
                 tickFormatter={(v) => formatValue(Number(v), ind.unit)}
               />
               <Tooltip content={<ChartTooltip unit={ind.unit} />} />
+              {snapped.map((e, i) => (
+                <ReferenceLine
+                  key={`${e.date}-${e.type}-${i}`}
+                  x={e.date}
+                  stroke={EVENT_COLOR[e.type] ?? "#5b6772"}
+                  strokeWidth={1}
+                  strokeDasharray="2 3"
+                  label={{
+                    value: e.type,
+                    position: "top",
+                    fill: EVENT_COLOR[e.type] ?? "#5b6772",
+                    fontSize: 9,
+                  }}
+                />
+              ))}
               <Line
                 type="monotone"
                 dataKey="value"

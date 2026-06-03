@@ -26,6 +26,7 @@ from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()
 
 import cache  # noqa: E402
+from data import events as events_data  # noqa: E402
 from data import fred, market, news  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -125,6 +126,15 @@ def calendar() -> dict:
         return {"enabled": False, "items": []}
     items = fred.get_calendar(days_ahead=14)
     return {"enabled": True, "count": len(items), "items": items}
+
+
+@app.get("/api/events")
+def events(
+    from_: str = Query(..., alias="from", description="YYYY-MM-DD"),
+    to: str = Query(..., description="YYYY-MM-DD"),
+) -> dict:
+    items = events_data.get_events(from_, to)
+    return {"from": from_, "to": to, "count": len(items), "events": items}
 
 
 @app.post("/api/refresh")

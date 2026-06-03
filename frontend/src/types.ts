@@ -88,3 +88,16 @@ export interface MetaResponse {
 
 export type RangeKey = "1W" | "1M" | "3M" | "6M" | "YTD" | "1Y" | "5Y";
 export const RANGES: RangeKey[] = ["1W", "1M", "3M", "6M", "YTD", "1Y", "5Y"];
+
+export interface EventItem {
+  date: string;   // YYYY-MM-DD
+  type: string;   // FOMC | NFP | CPI | PPI | RETAIL | PCE | GDP
+  label: string;
+}
+
+export interface EventsResponse {
+  from: string;
+  to: string;
+  count: number;
+  events: EventItem[];
+}

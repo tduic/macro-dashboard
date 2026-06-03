@@ -1,5 +1,6 @@
 import type {
   CalendarResponse,
+  EventsResponse,
   HistoryResponse,
   IndicatorsResponse,
   MetaResponse,
@@ -22,6 +23,10 @@ export const api = {
     getJSON<HistoryResponse>(`/api/indicators/${encodeURIComponent(id)}/history?range=${range}`),
   news: () => getJSON<NewsResponse>("/api/news"),
   calendar: () => getJSON<CalendarResponse>("/api/calendar"),
+  events: (from: string, to: string) =>
+    getJSON<EventsResponse>(
+      `/api/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    ),
   refresh: async () => {
     await fetch("/api/refresh", { method: "POST" });
   },
