@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Optional
@@ -73,14 +74,15 @@ RATE_BY_ID = {s.id: s for s in RATE_SPECS}
 # Economic releases (latest / prior / YoY). release_id values are the FRED
 # release ids used by the calendar endpoint.
 RELEASE_SPECS: list[ReleaseSpec] = [
+    # release_id values verified live against /fred/series/release
     ReleaseSpec("CPIAUCSL", "CPI (headline)", "CPIAUCSL", unit="idx", release_id=10),
     ReleaseSpec("CPILFESL", "Core CPI", "CPILFESL", unit="idx", release_id=10),
-    ReleaseSpec("PCEPI", "PCE", "PCEPI", unit="idx", release_id=21),
-    ReleaseSpec("PCEPILFE", "Core PCE", "PCEPILFE", unit="idx", release_id=21),
+    ReleaseSpec("PCEPI", "PCE", "PCEPI", unit="idx", release_id=54),
+    ReleaseSpec("PCEPILFE", "Core PCE", "PCEPILFE", unit="idx", release_id=54),
     ReleaseSpec("PAYEMS", "Nonfarm Payrolls", "PAYEMS", unit="k", release_id=50),
     ReleaseSpec("UNRATE", "Unemployment Rate", "UNRATE", unit="%", release_id=50),
     ReleaseSpec("GDPC1", "Real GDP", "GDPC1", unit="bn$", release_id=53),
-    ReleaseSpec("RSAFS", "Retail Sales", "RSAFS", unit="mn$", release_id=39),
+    ReleaseSpec("RSAFS", "Retail Sales", "RSAFS", unit="mn$", release_id=9),
     ReleaseSpec("PPIACO", "PPI (all)", "PPIACO", unit="idx", release_id=46),
 ]
 RELEASE_BY_ID = {s.id: s for s in RELEASE_SPECS}
@@ -299,12 +301,30 @@ def get_broad_dollar_fallback() -> Optional[dict]:
     }
 
 
+# Releases included in the economic calendar. Maps FRED release_id -> friendly
+# name. Verified live against /fred/series/release and /fred/release/dates.
+CALENDAR_RELEASES: dict[int, str] = {
+    50: "Employment Situation (NFP / Unemployment)",
+    10: "CPI",
+    46: "Producer Price Index (PPI)",
+    9: "Advance Retail Sales",
+    54: "Personal Income & Outlays (PCE)",
+    53: "GDP",
+    180: "Initial Jobless Claims (weekly)",
+}
+
+
 # ---- Calendar -------------------------------------------------------------
 @cached("calendar", ttl=6 * 60 * 60)
 def get_calendar(days_ahead: int = 14) -> list[dict]:
     """Upcoming FRED release dates for the releases backing our series.
 
     Returns [{name, releaseDate, source}] sorted by date. Empty if no key.
+
+    Implementation: queries /fred/release/dates once per unique release_id
+    rather than the aggregate /fred/releases/dates (which returns *all*
+    release dates ever and times out). Throttled to stay under FRED's
+    120 req/min limit. Cached ~6h, so this only fires a few times a day.
     """
     if not has_fred_key():
         return []
@@ -312,48 +332,45 @@ def get_calendar(days_ahead: int = 14) -> list[dict]:
     today = date.today()
     end = today + timedelta(days=days_ahead)
 
-    # Map release_id -> friendly name (dedupe across series sharing a release).
-    release_names: dict[int, str] = {}
-    for spec in RELEASE_SPECS:
-        if spec.release_id is not None:
-            release_names.setdefault(spec.release_id, _release_label(spec.release_id))
-
     out: list[dict] = []
-    try:
-        params = {
-            "api_key": key,
-            "file_type": "json",
-            "realtime_start": today.isoformat(),
-            "realtime_end": end.isoformat(),
-            "include_release_dates_with_no_data": "true",
-            "sort_order": "asc",
-        }
-        r = requests.get(f"{FRED_BASE}/releases/dates", params=params, timeout=20)
-        r.raise_for_status()
-        for rd in r.json().get("release_dates", []):
-            rid = rd.get("release_id")
-            d = rd.get("date")
-            if not d:
-                continue
-            try:
-                dd = datetime.strptime(d, "%Y-%m-%d").date()
-            except ValueError:
-                continue
-            if not (today <= dd <= end):
-                continue
-            if rid in release_names:
-                out.append({
-                    "name": release_names[rid],
-                    "releaseDate": dd.isoformat(),
-                    "source": rd.get("release_name") or f"FRED release {rid}",
-                })
-    except Exception as exc:  # noqa: BLE001
-        log.warning("FRED calendar fetch failed: %s", exc)
-        return []
+    for rid, friendly_name in CALENDAR_RELEASES.items():
+        try:
+            r = requests.get(
+                f"{FRED_BASE}/release/dates",
+                params={
+                    "release_id": rid,
+                    "api_key": key,
+                    "file_type": "json",
+                    "realtime_start": today.isoformat(),
+                    "realtime_end": end.isoformat(),
+                    "include_release_dates_with_no_data": "true",
+                    "sort_order": "asc",
+                },
+                timeout=12,
+            )
+            r.raise_for_status()
+            for rd in r.json().get("release_dates", []):
+                d = rd.get("date")
+                if not d:
+                    continue
+                try:
+                    dd = datetime.strptime(d, "%Y-%m-%d").date()
+                except ValueError:
+                    continue
+                if today <= dd <= end:
+                    out.append({
+                        "name": friendly_name,
+                        "releaseDate": dd.isoformat(),
+                        "source": "FRED",
+                    })
+        except Exception as exc:  # noqa: BLE001
+            log.warning("FRED calendar fetch failed for release %s: %s", rid, exc)
+            continue
+        time.sleep(0.4)  # stay well under 120 req/min
 
-    # de-dupe (name, date) and sort
-    seen = set()
-    deduped = []
+    # de-dupe (name, date) and sort by date
+    seen: set[tuple[str, str]] = set()
+    deduped: list[dict] = []
     for item in sorted(out, key=lambda x: x["releaseDate"]):
         k = (item["name"], item["releaseDate"])
         if k not in seen:
@@ -362,15 +379,3 @@ def get_calendar(days_ahead: int = 14) -> list[dict]:
     return deduped
 
 
-_RELEASE_LABELS = {
-    10: "CPI",
-    21: "Personal Income & Outlays (PCE)",
-    50: "Employment Situation (Payrolls/Unemployment)",
-    53: "GDP",
-    39: "Advance Retail Sales",
-    46: "Producer Price Index (PPI)",
-}
-
-
-def _release_label(release_id: int) -> str:
-    return _RELEASE_LABELS.get(release_id, f"FRED release {release_id}")
