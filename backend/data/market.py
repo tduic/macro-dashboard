@@ -67,6 +67,9 @@ MARKET_SPECS: list[MarketSpec] = [
     MarketSpec("IWM", "Russell 2000 (IWM)", "Equities", "IWM", unit="$", group="etf"),
     # Always shown
     MarketSpec("VIX", "Volatility (VIX)", "Equities", "^VIX", unit="pts"),
+    # Credit ETFs — proxy for HY / IG credit risk appetite
+    MarketSpec("HYG", "High Yield (HYG)", "Credit", "HYG", unit="$"),
+    MarketSpec("LQD", "Investment Grade (LQD)", "Credit", "LQD", unit="$"),
     # Global equity indices (non-US). Always shown — no group filter applies.
     MarketSpec("FTSE", "FTSE 100 (UK)", "Global Equities", "^FTSE", unit="pts"),
     MarketSpec("GDAXI", "DAX (Germany)", "Global Equities", "^GDAXI", unit="pts"),
