@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
-import type { Indicator } from "./types";
+import type { EquityView, Indicator } from "./types";
 import { formatClock } from "./format";
 import { IndicatorCard } from "./components/IndicatorCard";
 import { ChartModal } from "./components/ChartModal";
@@ -18,6 +18,43 @@ const CATEGORY_ORDER = [
   "Crypto",
 ];
 
+function EquityViewToggle({
+  value,
+  onChange,
+}: {
+  value: EquityView;
+  onChange: (v: EquityView) => void;
+}) {
+  const opts: { id: EquityView; label: string; hint: string }[] = [
+    { id: "etf", label: "ETFs", hint: "SPY · QQQ · DIA · IWM" },
+    { id: "index", label: "Indices", hint: "^GSPC · ^IXIC · ^DJI · ^RUT" },
+  ];
+  return (
+    <div
+      className="inline-flex items-center gap-0.5 rounded border border-chrome-border bg-chrome-card p-0.5"
+      role="tablist"
+      aria-label="Equity view"
+    >
+      {opts.map((o) => (
+        <button
+          key={o.id}
+          onClick={() => onChange(o.id)}
+          title={o.hint}
+          aria-selected={o.id === value}
+          role="tab"
+          className={`rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide transition-colors ${
+            o.id === value
+              ? "bg-chrome-text text-chrome-bg"
+              : "text-chrome-muted hover:text-white"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function FredBanner() {
   return (
     <div className="rounded border border-yellow-600/40 bg-yellow-900/20 px-3 py-2 text-xs text-yellow-200">
@@ -30,9 +67,22 @@ function FredBanner() {
   );
 }
 
+const EQUITY_VIEW_STORAGE = "macro:equityView";
+
 export default function App() {
   const qc = useQueryClient();
   const [selected, setSelected] = useState<Indicator | null>(null);
+
+  // Equities toggle: ETF proxies (SPY/QQQ/DIA/IWM) vs actual index levels
+  // (^GSPC/^IXIC/^DJI/^RUT). Persisted in localStorage; default = etf.
+  const [equityView, setEquityView] = useState<EquityView>(() => {
+    if (typeof window === "undefined") return "etf";
+    const v = window.localStorage.getItem(EQUITY_VIEW_STORAGE);
+    return v === "index" ? "index" : "etf";
+  });
+  useEffect(() => {
+    window.localStorage.setItem(EQUITY_VIEW_STORAGE, equityView);
+  }, [equityView]);
 
   const { data, isLoading, isError, dataUpdatedAt, isFetching } = useQuery({
     queryKey: ["indicators"],
@@ -47,6 +97,11 @@ export default function App() {
   const grouped = useMemo(() => {
     const map = new Map<string, Indicator[]>();
     for (const ind of indicators) {
+      // Equities filter: keep cards whose group matches the toggle, plus any
+      // un-grouped equities (VIX) which always show.
+      if (ind.category === "Equities" && ind.group && ind.group !== equityView) {
+        continue;
+      }
       if (!map.has(ind.category)) map.set(ind.category, []);
       map.get(ind.category)!.push(ind);
     }
@@ -54,7 +109,7 @@ export default function App() {
       category: c,
       items: map.get(c)!,
     }));
-  }, [indicators]);
+  }, [indicators, equityView]);
 
   async function handleRefresh() {
     await api.refresh();
@@ -111,9 +166,14 @@ export default function App() {
                 <CalendarPanel fredEnabled={fredEnabled} />
                 {grouped.map(({ category, items }) => (
                   <section key={category}>
-                    <h2 className="mb-2 text-xs font-semibold uppercase tracking-wider text-chrome-muted">
-                      {category}
-                    </h2>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <h2 className="text-xs font-semibold uppercase tracking-wider text-chrome-muted">
+                        {category}
+                      </h2>
+                      {category === "Equities" && (
+                        <EquityViewToggle value={equityView} onChange={setEquityView} />
+                      )}
+                    </div>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
                       {items.map((ind) => (
                         <IndicatorCard key={ind.id} ind={ind} onClick={setSelected} />

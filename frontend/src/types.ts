@@ -7,10 +7,15 @@ export type Delta = {
 
 export type ChangeType = "pct" | "bps";
 
+export type EquityView = "etf" | "index";
+
 export interface Indicator {
   id: string;
   label: string;
   category: string;
+  // Optional sub-group inside a category. For Equities: "etf" or "index" so
+  // the UI can toggle which set to show. Null/undefined means "always show".
+  group?: string | null;
   value: number;
   unit: string;
   asOf: string;

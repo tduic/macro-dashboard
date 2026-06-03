@@ -45,15 +45,25 @@ class MarketSpec:
     unit: str = "$"
     # fallback yfinance ticker(s) tried in order if the primary returns nothing
     fallbacks: tuple[str, ...] = field(default_factory=tuple)
+    # Optional sub-grouping inside a category. For Equities we tag the ETF
+    # proxies vs the actual index levels so the UI can toggle between them.
+    # None means "always show" (e.g. VIX).
+    group: Optional[str] = None
 
 
 # ---- The tracked market indicators (yfinance) -----------------------------
 MARKET_SPECS: list[MarketSpec] = [
-    # Equities & vol
-    MarketSpec("SPY", "S&P 500 (SPY)", "Equities", "SPY", unit="$"),
-    MarketSpec("QQQ", "Nasdaq 100 (QQQ)", "Equities", "QQQ", unit="$"),
-    MarketSpec("IWM", "Russell 2000 (IWM)", "Equities", "IWM", unit="$"),
-    MarketSpec("DIA", "Dow Jones (DIA)", "Equities", "DIA", unit="$"),
+    # Equities — ETF proxies (default view)
+    MarketSpec("SPY", "S&P 500 (SPY)", "Equities", "SPY", unit="$", group="etf"),
+    MarketSpec("QQQ", "Nasdaq 100 (QQQ)", "Equities", "QQQ", unit="$", group="etf"),
+    MarketSpec("IWM", "Russell 2000 (IWM)", "Equities", "IWM", unit="$", group="etf"),
+    MarketSpec("DIA", "Dow Jones (DIA)", "Equities", "DIA", unit="$", group="etf"),
+    # Equities — actual index levels (toggleable view)
+    MarketSpec("GSPC", "S&P 500 (Index)", "Equities", "^GSPC", unit="pts", group="index"),
+    MarketSpec("IXIC", "Nasdaq Composite", "Equities", "^IXIC", unit="pts", group="index"),
+    MarketSpec("DJI", "Dow Jones (Index)", "Equities", "^DJI", unit="pts", group="index"),
+    MarketSpec("RUT", "Russell 2000 (Index)", "Equities", "^RUT", unit="pts", group="index"),
+    # Always shown
     MarketSpec("VIX", "Volatility (VIX)", "Equities", "^VIX", unit="pts"),
     # FX
     MarketSpec("DXY", "US Dollar Index (DXY)", "FX", "DX-Y.NYB", unit="pts"),
@@ -153,6 +163,7 @@ def build_market_indicator(spec: MarketSpec) -> Optional[dict]:
         "id": spec.id,
         "label": spec.label,
         "category": spec.category,
+        "group": spec.group,
         "value": round(curr, 4),
         "unit": spec.unit,
         "asOf": as_of,
