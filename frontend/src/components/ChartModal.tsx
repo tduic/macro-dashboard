@@ -14,6 +14,7 @@ import { api } from "../api";
 import { RANGES, type EventItem, type Indicator, type NewsItem, type RangeKey } from "../types";
 import { formatValue } from "../format";
 import { findRelatedNews } from "../indicator-keywords";
+import { getEventTypeForIndicator } from "../indicator-events";
 import { NewsRow } from "./NewsFeed";
 
 type Tab = "chart" | "news";
@@ -436,6 +437,72 @@ function ChartView({
   );
 }
 
+function isoToday(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function daysBetween(aIso: string, bIso: string): number {
+  const a = new Date(aIso + "T00:00:00Z").getTime();
+  const b = new Date(bIso + "T00:00:00Z").getTime();
+  return Math.round((b - a) / 86400000);
+}
+
+function ReleaseContextStrip({ indId }: { indId: string }) {
+  const eventType = getEventTypeForIndicator(indId);
+  // Window: 90d back + 60d forward — wide enough to catch the surrounding pair.
+  const today = isoToday();
+  const from = new Date(Date.now() - 90 * 86400_000).toISOString().slice(0, 10);
+  const to = new Date(Date.now() + 60 * 86400_000).toISOString().slice(0, 10);
+  const q = useQuery({
+    queryKey: ["events", from, to],
+    queryFn: () => api.events(from, to),
+    enabled: !!eventType,
+    staleTime: 60 * 60_000,
+  });
+
+  if (!eventType) return null;
+  const all = q.data?.events ?? [];
+  const ofType = all.filter((e) => e.type === eventType);
+  const prev = [...ofType].reverse().find((e) => e.date < today);
+  const next = ofType.find((e) => e.date >= today);
+  if (!prev && !next) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-chrome-border bg-chrome-card/40 px-4 py-2 text-[11px]">
+      <span className="font-mono uppercase tracking-wide text-chrome-muted">
+        {eventType} schedule
+      </span>
+      {prev && (
+        <span className="text-chrome-text">
+          last <span className="font-mono text-white">{prev.date}</span>
+          <span className="text-chrome-muted"> ({Math.abs(daysBetween(prev.date, today))}d ago)</span>
+        </span>
+      )}
+      {next && (
+        <span className="text-chrome-text">
+          next <span className="font-mono text-up">{next.date}</span>
+          <span className="text-chrome-muted"> (in {daysBetween(today, next.date)}d)</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+type Bucket = "today" | "week" | "older";
+const BUCKET_LABEL: Record<Bucket, string> = {
+  today: "Today",
+  week: "Past 7 days",
+  older: "Older",
+};
+
+function bucketOf(publishedAt: string | null): Bucket {
+  if (!publishedAt) return "older";
+  const ageMs = Date.now() - new Date(publishedAt).getTime();
+  if (ageMs < 24 * 3600_000) return "today";
+  if (ageMs < 7 * 24 * 3600_000) return "week";
+  return "older";
+}
+
 function RelatedNewsView({
   related,
   isLoading,
@@ -445,8 +512,15 @@ function RelatedNewsView({
   isLoading: boolean;
   indId: string;
 }) {
+  const grouped = useMemo(() => {
+    const out: Record<Bucket, NewsItem[]> = { today: [], week: [], older: [] };
+    for (const it of related) out[bucketOf(it.publishedAt)].push(it);
+    return out;
+  }, [related]);
+
   return (
-    <div className="max-h-[420px] overflow-y-auto">
+    <div className="max-h-[480px] overflow-y-auto">
+      <ReleaseContextStrip indId={indId} />
       {isLoading ? (
         <div className="p-4 text-sm text-chrome-muted">loading…</div>
       ) : related.length === 0 ? (
@@ -456,11 +530,22 @@ function RelatedNewsView({
           minutes.
         </div>
       ) : (
-        <ul className="divide-y divide-chrome-border">
-          {related.map((it, i) => (
-            <NewsRow key={`${it.url}-${i}`} item={it} />
-          ))}
-        </ul>
+        <div>
+          {(["today", "week", "older"] as Bucket[]).map((b) =>
+            grouped[b].length > 0 ? (
+              <div key={b}>
+                <div className="sticky top-0 z-10 border-b border-chrome-border bg-chrome-panel/95 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-chrome-muted backdrop-blur">
+                  {BUCKET_LABEL[b]} · {grouped[b].length}
+                </div>
+                <ul className="divide-y divide-chrome-border">
+                  {grouped[b].map((it, i) => (
+                    <NewsRow key={`${it.url}-${i}`} item={it} />
+                  ))}
+                </ul>
+              </div>
+            ) : null,
+          )}
+        </div>
       )}
     </div>
   );

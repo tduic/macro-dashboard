@@ -196,10 +196,21 @@ Personal Income & Outlays (PCE), GDP, and weekly Initial Jobless Claims.
 
 ### Per-indicator news
 Click any indicator card to open the chart modal. It has a **Chart** tab and a
-**News** tab; the News tab filters the global feed down to articles whose
-headline matches that indicator's keywords (e.g. clicking **CPI** surfaces
-inflation articles, clicking **WTI** surfaces oil articles). The keyword
-map lives in [`frontend/src/indicator-keywords.ts`](frontend/src/indicator-keywords.ts).
+**Related News** tab; the News tab filters the global feed down to articles
+whose headline matches that indicator's keywords (e.g. clicking **CPI**
+surfaces inflation articles, clicking **WTI** surfaces oil articles). The
+keyword map lives in [`frontend/src/indicator-keywords.ts`](frontend/src/indicator-keywords.ts).
+
+The Related News view is **release-anchored** where applicable. For CPI /
+PCE / NFP / PPI / Retail Sales / GDP and the Fed Funds rate, a strip at
+the top shows the previous and next release/FOMC date (e.g. "last
+2026-05-13 (21d ago) · next 2026-06-10 (in 7d)") so you can read each
+headline against the calendar. Below the strip, items are grouped into
+**Today / Past 7 days / Older** buckets with sticky section headers,
+making it easy to see what's pre-print vs post-print at a glance.
+
+The indicator → event-type map lives in
+[`frontend/src/indicator-events.ts`](frontend/src/indicator-events.ts).
 
 ---
 
