@@ -10,6 +10,7 @@ import { CalendarPanel } from "./components/CalendarPanel";
 import { RegimeStrip } from "./components/RegimeStrip";
 import { HeatmapGrid } from "./components/HeatmapGrid";
 import { DailySummary } from "./components/DailySummary";
+import { YieldCurvePanel } from "./components/YieldCurvePanel";
 
 type ViewMode = "grid" | "heatmap";
 const VIEW_MODE_STORAGE = "macro:viewMode";
@@ -237,6 +238,11 @@ export default function App() {
                           <IndicatorCard key={ind.id} ind={ind} onClick={setSelected} />
                         ))}
                       </div>
+                      {category === "Rates" && fredEnabled && (
+                        <div className="mt-3">
+                          <YieldCurvePanel />
+                        </div>
+                      )}
                     </section>
                   ))
                 )}

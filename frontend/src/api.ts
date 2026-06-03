@@ -6,6 +6,7 @@ import type {
   MetaResponse,
   NewsResponse,
   RangeKey,
+  UstCurveResponse,
 } from "./types";
 
 async function getJSON<T>(url: string): Promise<T> {
@@ -27,6 +28,7 @@ export const api = {
     getJSON<EventsResponse>(
       `/api/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
     ),
+  ustCurve: () => getJSON<UstCurveResponse>("/api/curves/ust"),
   refresh: async () => {
     await fetch("/api/refresh", { method: "POST" });
   },

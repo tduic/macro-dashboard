@@ -104,3 +104,18 @@ export interface EventsResponse {
   count: number;
   events: EventItem[];
 }
+
+export interface CurvePoint {
+  tenor: string;
+  tenorYears: number;
+  yield: number;
+}
+
+export type CurveSnapshotKey = "current" | "1W" | "1M" | "3M" | "YE";
+
+export interface UstCurveResponse {
+  enabled: boolean;
+  asOf?: string;
+  tenors?: string[];
+  curves?: Record<CurveSnapshotKey, CurvePoint[]>;
+}

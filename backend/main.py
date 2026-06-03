@@ -26,6 +26,7 @@ from fastapi.middleware.cors import CORSMiddleware
 load_dotenv()
 
 import cache  # noqa: E402
+from data import curves as curves_data  # noqa: E402
 from data import events as events_data  # noqa: E402
 from data import fred, market, news  # noqa: E402
 
@@ -126,6 +127,14 @@ def calendar() -> dict:
         return {"enabled": False, "items": []}
     items = fred.get_calendar(days_ahead=14)
     return {"enabled": True, "count": len(items), "items": items}
+
+
+@app.get("/api/curves/ust")
+def ust_curve() -> dict:
+    data = curves_data.get_ust_curve()
+    if data is None:
+        return {"enabled": False, "curves": {}}
+    return {"enabled": True, **data}
 
 
 @app.get("/api/events")
