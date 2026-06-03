@@ -3,6 +3,7 @@ import { changeLabels, deltaColor, formatDelta, formatValue } from "../format";
 import { Sparkline } from "./Sparkline";
 import { PercentileBar } from "./PercentileBar";
 import { detectAnomaly } from "../anomaly";
+import { freshness } from "../staleness";
 
 function DeltaCell({
   label,
@@ -33,19 +34,26 @@ export function IndicatorCard({
 }) {
   const labels = changeLabels(ind);
   const anomaly = detectAnomaly(ind);
+  const fresh = freshness(ind);
+  const isStale = fresh.state === "stale";
   const borderClass = anomaly
     ? anomaly.severity === "extreme"
       ? "border-down/70 hover:border-down"
       : "border-down/40 hover:border-down/70"
-    : "border-chrome-border hover:border-chrome-muted";
+    : isStale
+      ? "border-yellow-600/50 hover:border-yellow-500"
+      : "border-chrome-border hover:border-chrome-muted";
+  const cardClass = isStale ? "bg-yellow-950/15" : "bg-chrome-card";
   return (
     <button
       onClick={() => onClick(ind)}
-      className={`group flex w-full flex-col gap-2 rounded border bg-chrome-card p-3 text-left transition-colors hover:bg-[#18212c] focus:outline-none focus:ring-1 focus:ring-chrome-muted ${borderClass}`}
+      className={`group flex w-full flex-col gap-2 rounded border p-3 text-left transition-colors hover:bg-[#18212c] focus:outline-none focus:ring-1 focus:ring-chrome-muted ${borderClass} ${cardClass}`}
       title={
-        anomaly
-          ? `${ind.label} — ${anomaly.pct >= 0 ? "+" : ""}${anomaly.pct.toFixed(2)}% (z=${anomaly.zScore}) vs trailing 30d. Source ${ind.source}.`
-          : `${ind.label} — source ${ind.source} — as of ${ind.asOf}`
+        isStale
+          ? `${ind.label} — data is ${fresh.ageDays}d old (source ${ind.source}). May not have refreshed; tap to view full history.`
+          : anomaly
+            ? `${ind.label} — ${anomaly.pct >= 0 ? "+" : ""}${anomaly.pct.toFixed(2)}% (z=${anomaly.zScore}) vs trailing 30d. Source ${ind.source}.`
+            : `${ind.label} — source ${ind.source} — as of ${ind.asOf}`
       }
     >
       <div className="flex items-baseline justify-between gap-2">
@@ -62,9 +70,18 @@ export function IndicatorCard({
           )}
           <span className="truncate">{ind.label}</span>
         </span>
-        <span className="shrink-0 text-[10px] text-chrome-muted opacity-0 transition-opacity group-hover:opacity-100">
-          chart ↗
-        </span>
+        {isStale ? (
+          <span
+            className="shrink-0 rounded bg-yellow-900/40 px-1 py-0.5 font-mono text-[9px] uppercase tracking-wide text-yellow-300"
+            title={`as of ${ind.asOf} (${fresh.ageDays}d old)`}
+          >
+            {fresh.ageDays}d old
+          </span>
+        ) : (
+          <span className="shrink-0 text-[10px] text-chrome-muted opacity-0 transition-opacity group-hover:opacity-100">
+            chart ↗
+          </span>
+        )}
       </div>
       <div className="flex items-end justify-between gap-2">
         <div className="font-mono text-xl font-semibold tabular-nums text-white">
