@@ -26,6 +26,9 @@ export interface Indicator {
     mom: Delta;
     ytd: Delta;
   };
+  // Last ~30 daily closes (or ~12 monthly prints for releases) — rendered as
+  // an inline sparkline on each card.
+  sparkline?: number[];
   meta?: {
     priorPrint?: number | null;
     changeLabels?: Partial<Record<"wow" | "mom" | "ytd", string>>;

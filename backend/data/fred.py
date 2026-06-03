@@ -180,6 +180,7 @@ def build_rate_indicator(spec: RateSpec) -> Optional[dict]:
             "ytd": _bps(curr, _prior_year_value(s)),
         }
 
+    spark = [round(float(v), 4) for v in s.iloc[-30:].tolist()]
     return {
         "id": spec.id,
         "label": spec.label,
@@ -190,6 +191,7 @@ def build_rate_indicator(spec: RateSpec) -> Optional[dict]:
         "changeType": change_type,
         "source": f"FRED:{spec.series_id}",
         "change": change,
+        "sparkline": spark,
     }
 
 
@@ -207,6 +209,7 @@ def build_release_indicator(spec: ReleaseSpec) -> Optional[dict]:
             return None
         return {"abs": round(curr - base, 2), "pct": round((curr - base) / base * 100, 2)}
 
+    spark = [round(float(v), 4) for v in s.iloc[-12:].tolist()]
     return {
         "id": spec.id,
         "label": spec.label,
@@ -223,6 +226,7 @@ def build_release_indicator(spec: ReleaseSpec) -> Optional[dict]:
             "ytd": pct(yoy_base),    # YoY
         },
         "meta": {"priorPrint": prior, "changeLabels": {"wow": "vs prior", "ytd": "YoY"}},
+        "sparkline": spark,
     }
 
 
@@ -284,6 +288,7 @@ def get_broad_dollar_fallback() -> Optional[dict]:
             return None
         return {"abs": round(curr - base, 3), "pct": round((curr - base) / base * 100, 2)}
 
+    spark = [round(float(v), 4) for v in s.iloc[-30:].tolist()]
     return {
         "id": "DXY",
         "label": "US Dollar Index (Broad, FRED)",
@@ -298,6 +303,7 @@ def get_broad_dollar_fallback() -> Optional[dict]:
             "mom": pct(_nearest_back(s, 31)),
             "ytd": pct(_prior_year_value(s)),
         },
+        "sparkline": spark,
     }
 
 

@@ -1,5 +1,6 @@
 import type { Indicator } from "../types";
 import { changeLabels, deltaColor, formatDelta, formatValue } from "../format";
+import { Sparkline } from "./Sparkline";
 
 function DeltaCell({
   label,
@@ -41,8 +42,13 @@ export function IndicatorCard({
           chart ↗
         </span>
       </div>
-      <div className="font-mono text-xl font-semibold tabular-nums text-white">
-        {formatValue(ind.value, ind.unit)}
+      <div className="flex items-end justify-between gap-2">
+        <div className="font-mono text-xl font-semibold tabular-nums text-white">
+          {formatValue(ind.value, ind.unit)}
+        </div>
+        {ind.sparkline && ind.sparkline.length > 1 && (
+          <Sparkline values={ind.sparkline} />
+        )}
       </div>
       <div className="grid grid-cols-3 gap-1 border-t border-chrome-border pt-2">
         <DeltaCell label={labels.wow} ind={ind} slot="wow" />

@@ -148,6 +148,9 @@ def _pct(curr: float, base: Optional[float]) -> Optional[dict]:
     return {"abs": round(curr - base, 4), "pct": round((curr - base) / base * 100, 2)}
 
 
+SPARKLINE_DAILY_POINTS = 30  # ~6 trading weeks for daily series
+
+
 def build_market_indicator(spec: MarketSpec) -> Optional[dict]:
     """Build one indicator dict for the /api/indicators response, or None."""
     s, used = _resolve_series(spec)
@@ -161,6 +164,7 @@ def build_market_indicator(spec: MarketSpec) -> Optional[dict]:
         "mom": _pct(curr, _value_n_rows_back(s, 21)),
         "ytd": _pct(curr, _prior_year_close(s)),
     }
+    spark = [round(float(v), 4) for v in s.iloc[-SPARKLINE_DAILY_POINTS:].tolist()]
     return {
         "id": spec.id,
         "label": spec.label,
@@ -172,6 +176,7 @@ def build_market_indicator(spec: MarketSpec) -> Optional[dict]:
         "changeType": "pct",
         "source": f"yfinance:{used}",
         "change": change,
+        "sparkline": spark,
     }
 
 
