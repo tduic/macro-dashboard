@@ -66,6 +66,9 @@ RATE_SPECS: list[RateSpec] = [
     RateSpec("DGS10", "10Y Treasury", "DGS10", unit="%"),
     RateSpec("DGS30", "30Y Treasury", "DGS30", unit="%"),
     RateSpec("T10Y2Y", "2s10s Spread", "T10Y2Y", unit="%"),
+    # Inflation expectations & real rates — daily FRED series
+    RateSpec("T10YIE", "10Y Breakeven (Inflation Exp.)", "T10YIE", unit="%"),
+    RateSpec("DFII10", "10Y Real Yield (TIPS)", "DFII10", unit="%"),
     RateSpec("DFF", "Fed Funds (eff)", "DFF", unit="%"),
     RateSpec("ICSA", "Initial Claims", "ICSA", unit=""),
 ]
