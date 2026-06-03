@@ -236,6 +236,41 @@ README.md
 
 ---
 
+## Remote access from other devices (Tailscale)
+
+The dev server is configured to listen on **all network interfaces** (Vite
+`host: true`), so any device on the same private network can reach the
+dashboard at `http://<this-machine-ip>:5173/`. The FastAPI backend stays
+bound to `127.0.0.1`; only Vite is reachable across interfaces, and it
+proxies `/api/*` to the local backend.
+
+The cleanest private path is **[Tailscale](https://tailscale.com)** — install
+on this machine and any other devices (iPhone, second laptop, …), sign in
+with the same account, and use the host's Tailscale IPv4 in the URL. Works
+anywhere both devices have internet; nothing is publicly exposed.
+
+```bash
+# on the host (one-time)
+brew install --cask tailscale       # or download the Mac app
+open -a Tailscale                   # sign in
+tailscale ip -4                     # -> e.g. 100.x.y.z
+
+# then from any other device on your tailnet
+# (after installing the Tailscale app + signing in with the same account)
+http://100.x.y.z:5173/
+```
+
+Keep `make dev` running on the host while you browse. The host must be
+awake for the dashboard to respond; on a MacBook with the lid closed,
+either keep it plugged in with `caffeinate -dimsu &` running, or graduate
+to a real deployment (see the README for the local-only stack as-shipped).
+
+For pure LAN access without Tailscale, you can substitute the host's
+Wi-Fi IP from `ipconfig getifaddr en0` — that only works when both
+devices are on the same Wi-Fi.
+
+---
+
 ## Troubleshooting
 
 - **Frontend loads but cards say "failed to load indicators".** The backend isn't
