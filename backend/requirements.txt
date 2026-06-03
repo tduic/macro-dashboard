@@ -1,0 +1,10 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+yfinance>=0.2.40
+fredapi>=0.5.2
+feedparser>=6.0.11
+cachetools>=5.3
+python-dotenv>=1.0
+httpx>=0.27
+requests>=2.31
+pandas>=2.2

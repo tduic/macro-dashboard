@@ -1,0 +1,55 @@
+# =====================================================================
+# Secrets — NEVER commit anything matching these. backend/.env holds the
+# FRED API key locally; .env.example is the only env file that ships.
+# =====================================================================
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key
+*credentials*
+*secret*
+
+# =====================================================================
+# Python
+# =====================================================================
+backend/venv/
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# =====================================================================
+# Node / frontend build artifacts
+# =====================================================================
+node_modules/
+**/node_modules/
+frontend/dist/
+dist/
+.vite/
+.cache/
+
+# =====================================================================
+# Editor / OS / runtime
+# =====================================================================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*.bak
+*~
+.playwright-mcp/
+dashboard.png
+chart.png
+*.log
+/tmp/

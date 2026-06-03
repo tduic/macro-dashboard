@@ -1,0 +1,15 @@
+{
+  "name": "macro-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Global macro tracking dashboard — FastAPI backend + Vite/React frontend",
+  "scripts": {
+    "dev": "concurrently -n api,web -c green,cyan \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev:backend": "cd backend && ./venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000 --reload",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
