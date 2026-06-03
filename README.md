@@ -4,13 +4,24 @@ A local, single-machine full-stack app for watching global macro markets. Two jo
 
 1. **Markets dashboard** — the key numbers you watch (equities, rates, FX, energy,
    metals, ags/softs, economic data, crypto) with current value + **WoW / MoM / YTD**
-   change and **click-through historical charts**. Equities can be viewed as either
-   actual index levels (^GSPC / ^IXIC / ^DJI / ^RUT, default) or ETF proxies
-   (SPY / QQQ / DIA / IWM) — preference is persisted.
+   change, **inline sparklines** so each card shows shape not just a number, and
+   **click-through historical charts**. Equities can be viewed as either actual
+   index levels (^GSPC / ^IXIC / ^DJI / ^RUT, default) or ETF proxies (SPY / QQQ
+   / DIA / IWM) — preference is persisted.
 2. **News + economic calendar** — an aggregated RSS news rail filterable by world
    topic (Fed, Markets, Economy, Energy, China, Geopolitics, etc.), an upcoming
    FRED economic-release calendar, and **per-indicator related news** surfaced
    when you click a card.
+
+**Synoptic reads:**
+- A **macro regime strip** at the top distills the dashboard into a 1-line read
+  ("Risk-On · Yields down · Dollar offered · Crude bid …") with a net-bias label.
+- A **Grid / Heatmap** toggle in the header swaps the category grid for a single
+  sorted, color-graded view (1W / MoM / YTD selector) so you can absorb relative
+  cross-asset performance in one glance.
+- **Chart modal overlays** mark FOMC rate decisions (gold) and major release
+  dates (CPI / PCE / PPI / NFP / Retail / GDP, color-coded) on every historical
+  chart, turning a price line into a narrative.
 
 Dark, dense, terminal-style UI. Monospace numbers, green/red deltas, muted chrome.
 
@@ -107,6 +118,7 @@ Base URL: `http://127.0.0.1:8000`
 | GET | `/api/indicators/{id}/history?range=1W\|1M\|3M\|6M\|YTD\|1Y\|5Y` | time series `[{date, value}]` |
 | GET | `/api/news` | deduped, reverse-chron news `[{title, source, url, publishedAt, category, topics}]` — `topics` is a list of world-topic tags (Fed, Markets, Economy, Energy, Tech, China, Geopolitics, Crypto, Earnings) auto-classified from each headline |
 | GET | `/api/calendar` | next ~14 days of upcoming FRED releases — Employment Situation (NFP), CPI, PPI, Retail Sales, PCE, GDP, weekly Initial Jobless Claims (empty/disabled without a key) |
+| GET | `/api/events?from=YYYY-MM-DD&to=YYYY-MM-DD` | macro-event dates in a window for chart overlays: hardcoded FOMC rate-decision dates + past/future FRED release dates (NFP, CPI, PPI, Retail, PCE, GDP) |
 | POST | `/api/refresh` | clear all caches (the header **↻ refresh** button) |
 
 **Indicator shape:**
@@ -125,7 +137,8 @@ Base URL: `http://127.0.0.1:8000`
     "wow": { "abs": 8.98, "pct": 1.2 },   // ~5 trading days
     "mom": { "abs": 35.0, "pct": 5.4 },   // ~21 trading days
     "ytd": { "abs": 77.65, "pct": 11.39 } // vs last close of prior year
-  }
+  },
+  "sparkline": [ /* last ~30 daily closes, or ~12 monthly prints for releases */ ]
 }
 ```
 For **yields** (`changeType: "bps"`), `change.*.abs` is the move in **basis points**
