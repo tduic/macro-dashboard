@@ -22,6 +22,9 @@ A local, single-machine full-stack app for watching global macro markets. Two jo
 - **Chart modal overlays** mark FOMC rate decisions (gold) and major release
   dates (CPI / PCE / PPI / NFP / Retail / GDP, color-coded) on every historical
   chart, turning a price line into a narrative.
+- **Compare / overlay** — pick any other indicator from a dropdown inside the
+  chart modal to plot it on a second axis. Reveals real cross-asset
+  relationships (SPY ↔ VIX, 10Y ↔ Gold, DXY ↔ EURUSD, etc.).
 
 Dark, dense, terminal-style UI. Monospace numbers, green/red deltas, muted chrome.
 

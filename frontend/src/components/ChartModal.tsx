@@ -18,13 +18,24 @@ import { NewsRow } from "./NewsFeed";
 
 type Tab = "chart" | "news";
 
-function ChartTooltip({ active, payload, unit }: any) {
+function ChartTooltip({
+  active,
+  payload,
+  unit,
+  compareUnit,
+  compareLabel,
+}: any) {
   if (!active || !payload || !payload.length) return null;
   const p = payload[0].payload;
   return (
     <div className="rounded border border-chrome-border bg-chrome-panel px-2 py-1 text-xs shadow-lg">
       <div className="text-chrome-muted">{p.date}</div>
       <div className="font-mono text-white">{formatValue(p.value, unit)}</div>
+      {p.compare != null && compareLabel && (
+        <div className="font-mono text-[#7bb3ff]">
+          {compareLabel.split(" (")[0]}: {formatValue(p.compare, compareUnit ?? "")}
+        </div>
+      )}
     </div>
   );
 }
@@ -38,6 +49,7 @@ export function ChartModal({
 }) {
   const [tab, setTab] = useState<Tab>("chart");
   const [range, setRange] = useState<RangeKey>("1Y");
+  const [compareId, setCompareId] = useState<string | null>(null);
 
   // News query uses the same key as the rail's, so this is a free read.
   const newsQuery = useQuery({
@@ -47,6 +59,15 @@ export function ChartModal({
   });
   const allNews: NewsItem[] = newsQuery.data?.items ?? [];
   const related = useMemo(() => findRelatedNews(allNews, ind.id), [allNews, ind.id]);
+
+  // Cached: same key as App's indicators query, so this is a free read used
+  // only to populate the compare picker.
+  const indicatorsQuery = useQuery({
+    queryKey: ["indicators"],
+    queryFn: api.indicators,
+    staleTime: 30_000,
+  });
+  const allIndicators = indicatorsQuery.data?.indicators ?? [];
 
   return (
     <div
@@ -90,7 +111,14 @@ export function ChartModal({
         </div>
 
         {tab === "chart" ? (
-          <ChartView ind={ind} range={range} onRangeChange={setRange} />
+          <ChartView
+            ind={ind}
+            range={range}
+            onRangeChange={setRange}
+            compareId={compareId}
+            onCompareChange={setCompareId}
+            allIndicators={allIndicators}
+          />
         ) : (
           <RelatedNewsView related={related} isLoading={newsQuery.isLoading} indId={ind.id} />
         )}
@@ -179,18 +207,33 @@ function snapEventsToPoints(
   return out;
 }
 
+const COMPARE_COLOR = "#7bb3ff";
+
 function ChartView({
   ind,
   range,
   onRangeChange,
+  compareId,
+  onCompareChange,
+  allIndicators,
 }: {
   ind: Indicator;
   range: RangeKey;
   onRangeChange: (r: RangeKey) => void;
+  compareId: string | null;
+  onCompareChange: (id: string | null) => void;
+  allIndicators: Indicator[];
 }) {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["history", ind.id, range],
     queryFn: () => api.history(ind.id, range),
+    staleTime: 60_000,
+  });
+
+  const compareQuery = useQuery({
+    queryKey: ["history", compareId, range],
+    queryFn: () => api.history(compareId!, range),
+    enabled: !!compareId,
     staleTime: 60_000,
   });
 
@@ -204,6 +247,34 @@ function ChartView({
   const last = values.length ? values[values.length - 1] : 0;
   const first = values.length ? values[0] : 0;
   const lineColor = last >= first ? "#26d07c" : "#ff5c5c";
+
+  // Merge compare series onto primary by date with forward-fill (handles
+  // monthly-vs-daily mismatches without breaking the line). Returns the same
+  // shape regardless so chart props stay uniform.
+  type Row = { date: string; value: number; compare?: number };
+  const merged: Row[] = useMemo(() => {
+    const comparePoints = compareQuery.data?.points ?? [];
+    if (!compareId || comparePoints.length === 0) {
+      return points.map((p) => ({ date: p.date, value: p.value }));
+    }
+    let j = 0;
+    let lastVal: number | undefined;
+    return points.map((p) => {
+      while (j < comparePoints.length && comparePoints[j].date <= p.date) {
+        lastVal = comparePoints[j].value;
+        j++;
+      }
+      return { date: p.date, value: p.value, compare: lastVal };
+    });
+  }, [points, compareQuery.data, compareId]);
+
+  const compareInd = compareId ? allIndicators.find((i) => i.id === compareId) : null;
+  const compareValues = merged
+    .map((p) => p.compare)
+    .filter((v): v is number => v != null);
+  const cMin = compareValues.length ? Math.min(...compareValues) : 0;
+  const cMax = compareValues.length ? Math.max(...compareValues) : 1;
+  const cPad = (cMax - cMin) * 0.08 || Math.abs(cMax) * 0.02 || 1;
 
   const fromDate = points[0]?.date ?? "";
   const toDate = points[points.length - 1]?.date ?? "";
@@ -237,9 +308,24 @@ function ChartView({
             {r}
           </button>
         ))}
+        <select
+          value={compareId ?? ""}
+          onChange={(e) => onCompareChange(e.target.value || null)}
+          className="ml-auto rounded border border-chrome-border bg-chrome-card px-2 py-1 font-mono text-[10px] uppercase tracking-wide text-chrome-text hover:border-chrome-muted"
+          title="Overlay another indicator on a second axis"
+        >
+          <option value="">Compare: —</option>
+          {allIndicators
+            .filter((i) => i.id !== ind.id)
+            .map((i) => (
+              <option key={i.id} value={i.id}>
+                {i.label}
+              </option>
+            ))}
+        </select>
         <button
           onClick={() => setShowEvents((v) => !v)}
-          className={`ml-auto rounded border px-2 py-1 font-mono text-[10px] uppercase tracking-wide transition-colors ${
+          className={`rounded border px-2 py-1 font-mono text-[10px] uppercase tracking-wide transition-colors ${
             showEvents
               ? "border-chrome-text bg-chrome-text/10 text-chrome-text"
               : "border-chrome-border text-chrome-muted hover:text-white"
@@ -274,7 +360,7 @@ function ChartView({
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={points} margin={{ top: 22, right: 12, bottom: 4, left: 4 }}>
+            <LineChart data={merged} margin={{ top: 22, right: compareInd ? 56 : 12, bottom: 4, left: 4 }}>
               <CartesianGrid stroke="#1f2733" vertical={false} />
               <XAxis
                 dataKey="date"
@@ -283,13 +369,25 @@ function ChartView({
                 stroke="#1f2733"
               />
               <YAxis
+                yAxisId="left"
                 domain={[min - pad, max + pad]}
                 tick={{ fill: "#5b6772", fontSize: 10 }}
                 width={56}
                 stroke="#1f2733"
                 tickFormatter={(v) => formatValue(Number(v), ind.unit)}
               />
-              <Tooltip content={<ChartTooltip unit={ind.unit} />} />
+              {compareInd && (
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  domain={[cMin - cPad, cMax + cPad]}
+                  tick={{ fill: COMPARE_COLOR, fontSize: 10 }}
+                  width={56}
+                  stroke="#1f2733"
+                  tickFormatter={(v) => formatValue(Number(v), compareInd.unit)}
+                />
+              )}
+              <Tooltip content={<ChartTooltip unit={ind.unit} compareUnit={compareInd?.unit} compareLabel={compareInd?.label} />} />
               {snapped.map((e, i) => {
                 const st = EVENT_STYLE[e.type] ?? DEFAULT_EVENT_STYLE;
                 return (
@@ -309,6 +407,7 @@ function ChartView({
                 );
               })}
               <Line
+                yAxisId="left"
                 type="monotone"
                 dataKey="value"
                 stroke={lineColor}
@@ -316,6 +415,19 @@ function ChartView({
                 dot={false}
                 isAnimationActive={false}
               />
+              {compareInd && (
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="compare"
+                  stroke={COMPARE_COLOR}
+                  strokeWidth={1.4}
+                  strokeOpacity={0.85}
+                  dot={false}
+                  isAnimationActive={false}
+                  connectNulls
+                />
+              )}
             </LineChart>
           </ResponsiveContainer>
         )}
