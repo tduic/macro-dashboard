@@ -9,6 +9,7 @@ import { NewsFeed } from "./components/NewsFeed";
 import { CalendarPanel } from "./components/CalendarPanel";
 import { RegimeStrip } from "./components/RegimeStrip";
 import { HeatmapGrid } from "./components/HeatmapGrid";
+import { DailySummary } from "./components/DailySummary";
 
 type ViewMode = "grid" | "heatmap";
 const VIEW_MODE_STORAGE = "macro:viewMode";
@@ -215,6 +216,7 @@ export default function App() {
               </div>
             ) : (
               <>
+                <DailySummary indicators={indicators} />
                 <RegimeStrip indicators={indicators} />
                 <CalendarPanel fredEnabled={fredEnabled} />
                 {viewMode === "heatmap" ? (
