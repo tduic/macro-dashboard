@@ -8,6 +8,10 @@ import { ChartModal } from "./components/ChartModal";
 import { NewsFeed } from "./components/NewsFeed";
 import { CalendarPanel } from "./components/CalendarPanel";
 import { RegimeStrip } from "./components/RegimeStrip";
+import { HeatmapGrid } from "./components/HeatmapGrid";
+
+type ViewMode = "grid" | "heatmap";
+const VIEW_MODE_STORAGE = "macro:viewMode";
 
 const CATEGORY_ORDER = [
   "Equities",
@@ -18,6 +22,42 @@ const CATEGORY_ORDER = [
   "Economic Data",
   "Crypto",
 ];
+
+function ViewToggle({
+  value,
+  onChange,
+}: {
+  value: ViewMode;
+  onChange: (v: ViewMode) => void;
+}) {
+  const opts: { id: ViewMode; label: string }[] = [
+    { id: "grid", label: "Grid" },
+    { id: "heatmap", label: "Heatmap" },
+  ];
+  return (
+    <div
+      className="inline-flex items-center gap-0.5 rounded border border-chrome-border bg-chrome-card p-0.5"
+      role="tablist"
+      aria-label="View mode"
+    >
+      {opts.map((o) => (
+        <button
+          key={o.id}
+          onClick={() => onChange(o.id)}
+          aria-selected={o.id === value}
+          role="tab"
+          className={`rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide transition-colors ${
+            o.id === value
+              ? "bg-chrome-text text-chrome-bg"
+              : "text-chrome-muted hover:text-white"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function EquityViewToggle({
   value,
@@ -85,6 +125,16 @@ export default function App() {
     window.localStorage.setItem(EQUITY_VIEW_STORAGE, equityView);
   }, [equityView]);
 
+  // Layout mode: grouped grid (default) vs single sorted heatmap
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    if (typeof window === "undefined") return "grid";
+    const v = window.localStorage.getItem(VIEW_MODE_STORAGE);
+    return v === "heatmap" ? "heatmap" : "grid";
+  });
+  useEffect(() => {
+    window.localStorage.setItem(VIEW_MODE_STORAGE, viewMode);
+  }, [viewMode]);
+
   const { data, isLoading, isError, dataUpdatedAt, isFetching } = useQuery({
     queryKey: ["indicators"],
     queryFn: api.indicators,
@@ -131,6 +181,7 @@ export default function App() {
             </span>
           </div>
           <div className="flex items-center gap-3">
+            <ViewToggle value={viewMode} onChange={setViewMode} />
             <span className="font-mono text-[11px] text-chrome-muted">
               {isFetching
                 ? "refreshing…"
@@ -166,23 +217,27 @@ export default function App() {
               <>
                 <RegimeStrip indicators={indicators} />
                 <CalendarPanel fredEnabled={fredEnabled} />
-                {grouped.map(({ category, items }) => (
-                  <section key={category}>
-                    <div className="mb-2 flex items-center justify-between gap-2">
-                      <h2 className="text-xs font-semibold uppercase tracking-wider text-chrome-muted">
-                        {category}
-                      </h2>
-                      {category === "Equities" && (
-                        <EquityViewToggle value={equityView} onChange={setEquityView} />
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
-                      {items.map((ind) => (
-                        <IndicatorCard key={ind.id} ind={ind} onClick={setSelected} />
-                      ))}
-                    </div>
-                  </section>
-                ))}
+                {viewMode === "heatmap" ? (
+                  <HeatmapGrid indicators={indicators} onSelect={setSelected} />
+                ) : (
+                  grouped.map(({ category, items }) => (
+                    <section key={category}>
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <h2 className="text-xs font-semibold uppercase tracking-wider text-chrome-muted">
+                          {category}
+                        </h2>
+                        {category === "Equities" && (
+                          <EquityViewToggle value={equityView} onChange={setEquityView} />
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
+                        {items.map((ind) => (
+                          <IndicatorCard key={ind.id} ind={ind} onClick={setSelected} />
+                        ))}
+                      </div>
+                    </section>
+                  ))
+                )}
               </>
             )}
           </div>
