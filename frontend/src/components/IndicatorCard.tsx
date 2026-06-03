@@ -2,6 +2,7 @@ import type { Indicator } from "../types";
 import { changeLabels, deltaColor, formatDelta, formatValue } from "../format";
 import { Sparkline } from "./Sparkline";
 import { PercentileBar } from "./PercentileBar";
+import { detectAnomaly } from "../anomaly";
 
 function DeltaCell({
   label,
@@ -31,14 +32,36 @@ export function IndicatorCard({
   onClick: (ind: Indicator) => void;
 }) {
   const labels = changeLabels(ind);
+  const anomaly = detectAnomaly(ind);
+  const borderClass = anomaly
+    ? anomaly.severity === "extreme"
+      ? "border-down/70 hover:border-down"
+      : "border-down/40 hover:border-down/70"
+    : "border-chrome-border hover:border-chrome-muted";
   return (
     <button
       onClick={() => onClick(ind)}
-      className="group flex w-full flex-col gap-2 rounded border border-chrome-border bg-chrome-card p-3 text-left transition-colors hover:border-chrome-muted hover:bg-[#18212c] focus:outline-none focus:ring-1 focus:ring-chrome-muted"
-      title={`${ind.label} — source ${ind.source} — as of ${ind.asOf}`}
+      className={`group flex w-full flex-col gap-2 rounded border bg-chrome-card p-3 text-left transition-colors hover:bg-[#18212c] focus:outline-none focus:ring-1 focus:ring-chrome-muted ${borderClass}`}
+      title={
+        anomaly
+          ? `${ind.label} — ${anomaly.pct >= 0 ? "+" : ""}${anomaly.pct.toFixed(2)}% (z=${anomaly.zScore}) vs trailing 30d. Source ${ind.source}.`
+          : `${ind.label} — source ${ind.source} — as of ${ind.asOf}`
+      }
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="truncate text-xs font-medium text-chrome-text">{ind.label}</span>
+        <span className="flex min-w-0 items-center gap-1 truncate text-xs font-medium text-chrome-text">
+          {anomaly && (
+            <span
+              className={`shrink-0 font-mono text-[10px] ${
+                anomaly.severity === "extreme" ? "text-down" : "text-yellow-400"
+              }`}
+              aria-label="anomalous move"
+            >
+              ⚠
+            </span>
+          )}
+          <span className="truncate">{ind.label}</span>
+        </span>
         <span className="shrink-0 text-[10px] text-chrome-muted opacity-0 transition-opacity group-hover:opacity-100">
           chart ↗
         </span>
