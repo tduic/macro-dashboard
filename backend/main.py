@@ -53,7 +53,7 @@ VALID_RANGES = {"1W", "1M", "3M", "6M", "YTD", "1Y", "5Y"}
 # Category display order for the frontend grid.
 CATEGORY_ORDER = [
     "Equities", "Global Equities", "Rates", "Credit", "FX", "Energy & Metals",
-    "Ags / Softs", "Economic Data", "Crypto",
+    "Ags / Softs", "Economic Data", "Crypto", "Ratios",
 ]
 
 
@@ -107,6 +107,8 @@ def history(indicator_id: str, range: str = Query("1Y")) -> dict:  # noqa: A002
         raise HTTPException(status_code=400, detail=f"invalid range; use one of {sorted(VALID_RANGES)}")
 
     series = market.get_market_history(indicator_id, rng)
+    if series is None:
+        series = market.get_ratio_history(indicator_id, rng)
     if series is None:
         series = fred.get_fred_history(indicator_id, rng)
     if series is None:

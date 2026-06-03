@@ -162,6 +162,27 @@ SPARKLINE_DAILY_POINTS = 30  # ~6 trading weeks for daily series
 PERCENTILE_WINDOW_DAILY = 252  # ~1 trading year
 
 
+@dataclass(frozen=True)
+class RatioSpec:
+    """A derived indicator computed as series_a / series_b on aligned dates."""
+    id: str
+    label: str
+    a_id: str  # MarketSpec.id of the numerator
+    b_id: str  # MarketSpec.id of the denominator
+    unit: str = "x"
+
+
+# Macro ratios that read as regime signals
+RATIO_SPECS: list[RatioSpec] = [
+    RatioSpec("GOLD_SILVER", "Gold / Silver", "GOLD", "SILVER", unit="x"),
+    RatioSpec("COPPER_GOLD", "Copper / Gold", "COPPER", "GOLD", unit="x"),
+    RatioSpec("BTC_GOLD", "BTC / Gold (oz equiv)", "BTC", "GOLD", unit="x"),
+    RatioSpec("ETH_BTC", "ETH / BTC", "ETH", "BTC", unit="x"),
+]
+
+RATIO_BY_ID = {r.id: r for r in RATIO_SPECS}
+
+
 def _percentile_rank(series: "pd.Series", n: int, label: str) -> Optional[dict]:
     """Where the last value sits vs the last n observations, as a 0–100 rank.
 
@@ -208,6 +229,67 @@ def build_market_indicator(spec: MarketSpec) -> Optional[dict]:
     }
 
 
+def _ratio_series(spec: RatioSpec) -> Optional[pd.Series]:
+    a = _resolve_series(MARKET_BY_ID[spec.a_id])[0] if spec.a_id in MARKET_BY_ID else None
+    b = _resolve_series(MARKET_BY_ID[spec.b_id])[0] if spec.b_id in MARKET_BY_ID else None
+    if a is None or b is None or a.empty or b.empty:
+        return None
+    aligned = pd.concat({"a": a, "b": b}, axis=1).dropna()
+    aligned = aligned[aligned["b"] != 0]
+    if aligned.empty:
+        return None
+    return aligned["a"] / aligned["b"]
+
+
+def build_ratio_indicator(spec: RatioSpec) -> Optional[dict]:
+    s = _ratio_series(spec)
+    if s is None or s.empty:
+        return None
+    curr = float(s.iloc[-1])
+    as_of = s.index[-1].date().isoformat()
+    change = {
+        "wow": _pct(curr, _value_n_rows_back(s, 5)),
+        "mom": _pct(curr, _value_n_rows_back(s, 21)),
+        "ytd": _pct(curr, _prior_year_close(s)),
+    }
+    spark = [round(float(v), 6) for v in s.iloc[-SPARKLINE_DAILY_POINTS:].tolist()]
+    pct = _percentile_rank(s, PERCENTILE_WINDOW_DAILY, "1Y")
+    return {
+        "id": spec.id,
+        "label": spec.label,
+        "category": "Ratios",
+        "group": None,
+        "value": round(curr, 4),
+        "unit": spec.unit,
+        "asOf": as_of,
+        "changeType": "pct",
+        "source": f"derived:{spec.a_id}/{spec.b_id}",
+        "change": change,
+        "sparkline": spark,
+        "percentile": pct,
+    }
+
+
+def get_ratio_history(ratio_id: str, range_: str) -> Optional[list[dict]]:
+    spec = RATIO_BY_ID.get(ratio_id)
+    if spec is None:
+        return None
+    s = _ratio_series(spec)
+    if s is None or s.empty:
+        return []
+    if range_ == "YTD":
+        year = s.index[-1].year
+        sliced = s[s.index.year == year]
+    else:
+        days = RANGE_DAYS.get(range_, 366)
+        cutoff = s.index[-1] - pd.Timedelta(days=days)
+        sliced = s[s.index >= cutoff]
+    return [
+        {"date": idx.date().isoformat(), "value": round(float(val), 6)}
+        for idx, val in sliced.items()
+    ]
+
+
 def get_market_indicators() -> list[dict]:
     out: list[dict] = []
     for spec in MARKET_SPECS:
@@ -219,6 +301,14 @@ def get_market_indicators() -> list[dict]:
                 log.warning("skipping market indicator %s (no data)", spec.id)
         except Exception as exc:  # noqa: BLE001
             log.warning("failed building market indicator %s: %s", spec.id, exc)
+    # Append derived ratio indicators after the underlying series are loaded.
+    for rspec in RATIO_SPECS:
+        try:
+            ind = build_ratio_indicator(rspec)
+            if ind is not None:
+                out.append(ind)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("failed building ratio %s: %s", rspec.id, exc)
     return out
 
 
