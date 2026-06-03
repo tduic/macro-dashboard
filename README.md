@@ -157,7 +157,7 @@ these "vs prior" and "YoY"); `meta.priorPrint` holds the previous level.
 |----------|--------|-------------|
 | **Equities** | yfinance | **Indices (default):** ^GSPC, ^IXIC, ^DJI, ^RUT, ^VIX · **ETFs (toggle):** SPY, QQQ, DIA, IWM · VIX always shows |
 | **Global Equities** | yfinance | FTSE 100 (^FTSE), DAX (^GDAXI), Euro Stoxx 50 (^STOXX50E), Nikkei 225 (^N225), Hang Seng (^HSI), Shanghai Composite (000001.SS) |
-| **Rates** | FRED | DGS2, DGS10, DGS30, T10Y2Y (2s10s), T10YIE (10Y breakeven / inflation exp.), DFII10 (10Y real yield / TIPS), DFF (fed funds), ICSA (initial claims) |
+| **Rates** | FRED | DGS2, DGS10, DGS30, T10Y2Y (2s10s), T10YIE (10Y breakeven / inflation exp.), DFII10 (10Y real yield / TIPS), DFF (fed funds), ECBDFR (ECB deposit rate), IUDSOIA (BoE / SONIA), IR3TIB01JPM156N (BoJ 3M interbank), ICSA (initial claims) |
 | **Credit** | yfinance | HYG (high-yield ETF), LQD (investment-grade ETF) — proxies for credit-risk appetite |
 | **FX** | yfinance (FRED fallback) | DXY (`DX-Y.NYB`, falls back to FRED `DTWEXBGS`), EURUSD, USDJPY, GBPUSD |
 | **Energy & Metals** | yfinance | WTI (CL=F), Brent (BZ=F), NatGas (NG=F), Gold (GC=F), Silver (SI=F), Copper (HG=F) |

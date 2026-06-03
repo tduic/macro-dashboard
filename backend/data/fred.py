@@ -70,6 +70,10 @@ RATE_SPECS: list[RateSpec] = [
     RateSpec("T10YIE", "10Y Breakeven (Inflation Exp.)", "T10YIE", unit="%"),
     RateSpec("DFII10", "10Y Real Yield (TIPS)", "DFII10", unit="%"),
     RateSpec("DFF", "Fed Funds (eff)", "DFF", unit="%"),
+    # Global policy rates — closest clean FRED proxies for ECB / BoE / BoJ
+    RateSpec("ECBDFR", "ECB Deposit Rate", "ECBDFR", unit="%"),
+    RateSpec("SONIA", "BoE Bank Rate (SONIA)", "IUDSOIA", unit="%"),
+    RateSpec("BOJ3M", "BoJ 3M Interbank", "IR3TIB01JPM156N", unit="%"),
     RateSpec("ICSA", "Initial Claims", "ICSA", unit=""),
 ]
 RATE_BY_ID = {s.id: s for s in RATE_SPECS}
@@ -97,6 +101,13 @@ RANGE_DAYS = {
 }
 
 
+# Tiny per-process throttle so back-to-back FRED fetches on a cold cache
+# (Rates + Releases together = ~18 series) don't tip over FRED's 120 req/min
+# cap. Each cache-miss sleeps briefly before the upstream call. Cached hits
+# are unaffected.
+_FRED_THROTTLE_S = 0.35
+
+
 # ---- Low-level fetch (cached ~6h) -----------------------------------------
 @cached("fred", ttl=6 * 60 * 60)
 def _fetch_series(series_id: str) -> Optional[pd.Series]:
@@ -104,6 +115,7 @@ def _fetch_series(series_id: str) -> Optional[pd.Series]:
     key = get_api_key()
     if not key:
         return None
+    time.sleep(_FRED_THROTTLE_S)
     try:
         # Use the REST observations endpoint directly (no extra dep beyond requests).
         params = {
