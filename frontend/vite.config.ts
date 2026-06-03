@@ -14,6 +14,10 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    // Allow any *.ts.net host so this works when fronted by
+    // `tailscale serve` (URL: https://<machine>.<tailnet>.ts.net/).
+    // Vite blocks unknown Host headers by default to prevent DNS rebinding.
+    allowedHosts: [".ts.net", "localhost", "127.0.0.1"],
     proxy: {
       "/api": {
         target: "http://127.0.0.1:8000",

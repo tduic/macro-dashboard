@@ -239,35 +239,71 @@ README.md
 ## Remote access from other devices (Tailscale)
 
 The dev server is configured to listen on **all network interfaces** (Vite
-`host: true`), so any device on the same private network can reach the
-dashboard at `http://<this-machine-ip>:5173/`. The FastAPI backend stays
-bound to `127.0.0.1`; only Vite is reachable across interfaces, and it
-proxies `/api/*` to the local backend.
+`server.host: true`), and `server.allowedHosts` permits any `*.ts.net` host
+so it plays nice with `tailscale serve`. The FastAPI backend stays bound
+to `127.0.0.1` — only Vite is reachable across interfaces, and it proxies
+`/api/*` to the local backend.
 
-The cleanest private path is **[Tailscale](https://tailscale.com)** — install
+[Tailscale](https://tailscale.com) is the cleanest private path: install
 on this machine and any other devices (iPhone, second laptop, …), sign in
-with the same account, and use the host's Tailscale IPv4 in the URL. Works
+with the same account, then pick one of the URL flavors below. Works
 anywhere both devices have internet; nothing is publicly exposed.
+
+### URL options (cleanest → simplest)
+
+The Tailscale FQDN format is `<machine>.<tailnet-id>.ts.net`. Substitute
+your own values from `tailscale status --json | jq '.Self.DNSName'`.
+
+**1. HTTPS with no port (Tailscale Serve)** — `https://<machine>.<tailnet>.ts.net/`
+
+The slickest option. Tailscale fronts the dashboard with a valid
+Let's Encrypt cert on port 443.
 
 ```bash
 # on the host (one-time)
-brew install --cask tailscale       # or download the Mac app
-open -a Tailscale                   # sign in
-tailscale ip -4                     # -> e.g. 100.x.y.z
+tailscale serve --bg 5173
 
-# then from any other device on your tailnet
-# (after installing the Tailscale app + signing in with the same account)
-http://100.x.y.z:5173/
+# then on any device on your tailnet
+open https://<machine>.<tailnet>.ts.net/
+
+# to remove later
+tailscale serve --https=443 off
 ```
 
-Keep `make dev` running on the host while you browse. The host must be
-awake for the dashboard to respond; on a MacBook with the lid closed,
-either keep it plugged in with `caffeinate -dimsu &` running, or graduate
-to a real deployment (see the README for the local-only stack as-shipped).
+`serve` config persists across reboots. Keep `make dev` running.
 
-For pure LAN access without Tailscale, you can substitute the host's
-Wi-Fi IP from `ipconfig getifaddr en0` — that only works when both
-devices are on the same Wi-Fi.
+**2. MagicDNS hostname with port** — `http://<machine>:5173/`
+
+If MagicDNS is enabled (it is by default on new tailnets) you can use the
+short machine name directly:
+
+```
+http://macbook-pro:5173/
+```
+
+**3. Raw Tailscale IP** — `http://100.x.y.z:5173/`
+
+Always works regardless of MagicDNS:
+
+```bash
+tailscale ip -4
+# -> e.g. 100.107.138.119
+open http://100.107.138.119:5173/
+```
+
+**Cleaner machine name**: rename in the Tailscale admin console
+([login.tailscale.com/admin/machines](https://login.tailscale.com/admin/machines))
+— e.g. rename `macbook-pro` to `macro` and you get
+`https://macro.<tailnet>.ts.net/`.
+
+### Keep the host awake
+The host must be awake for the dashboard to respond. On a MacBook with the
+lid closed, either keep it plugged in with `caffeinate -dimsu &` running,
+or graduate to a real deployment.
+
+### LAN-only fallback
+For LAN access without Tailscale, substitute the host's Wi-Fi IP
+(`ipconfig getifaddr en0`) — works when both devices share a Wi-Fi.
 
 ---
 
