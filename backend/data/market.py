@@ -13,6 +13,7 @@ Design notes / reasonable choices made here:
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
@@ -104,26 +105,35 @@ MARKET_SPECS: list[MarketSpec] = [
 MARKET_BY_ID = {s.id: s for s in MARKET_SPECS}
 
 
+# One cheap retry on a transient yfinance failure — without it, a single
+# blip means the card is omitted for a full 60s cache cycle.
+_FETCH_ATTEMPTS = 2
+_RETRY_SLEEP_S = 0.5
+
+
 @cached("market", ttl=60)
 def _download_series(ticker: str) -> Optional[pd.Series]:
     """Return a daily close Series (DatetimeIndex) for a ticker, or None.
 
-    Cached ~60s per ticker. Any failure returns None (logged), never raises.
+    Cached ~60s per ticker. Retries once on a transient failure with a tiny
+    backoff. Any final failure returns None (logged), never raises.
     """
-    try:
-        df = yf.Ticker(ticker).history(period="5y", interval="1d", auto_adjust=False)
-        if df is None or df.empty or "Close" not in df:
-            log.warning("yfinance returned no data for %s", ticker)
-            return None
-        s = df["Close"].dropna()
-        if s.empty:
-            return None
-        # normalize index to tz-naive dates for clean slicing/serialization
-        s.index = pd.to_datetime(s.index).tz_localize(None)
-        return s
-    except Exception as exc:  # noqa: BLE001 - we never want one ticker to crash a route
-        log.warning("yfinance fetch failed for %s: %s", ticker, exc)
-        return None
+    for attempt in range(1, _FETCH_ATTEMPTS + 1):
+        try:
+            df = yf.Ticker(ticker).history(period="5y", interval="1d", auto_adjust=False)
+            if df is None or df.empty or "Close" not in df:
+                log.warning("yfinance returned no data for %s (attempt %d)", ticker, attempt)
+            else:
+                s = df["Close"].dropna()
+                if not s.empty:
+                    # normalize index to tz-naive dates for clean slicing/serialization
+                    s.index = pd.to_datetime(s.index).tz_localize(None)
+                    return s
+        except Exception as exc:  # noqa: BLE001 - we never want one ticker to crash a route
+            log.warning("yfinance fetch failed for %s (attempt %d): %s", ticker, attempt, exc)
+        if attempt < _FETCH_ATTEMPTS:
+            time.sleep(_RETRY_SLEEP_S)
+    return None
 
 
 def _resolve_series(spec: MarketSpec) -> tuple[Optional[pd.Series], str]:
@@ -160,6 +170,34 @@ def _pct(curr: float, base: Optional[float]) -> Optional[dict]:
 
 SPARKLINE_DAILY_POINTS = 30  # ~6 trading weeks for daily series
 PERCENTILE_WINDOW_DAILY = 252  # ~1 trading year
+DRAWDOWN_WINDOW_DAYS = 366  # trailing 1Y (calendar days) for the running max
+
+
+def compute_drawdown(s: Optional[pd.Series]) -> Optional[dict]:
+    """Drawdown of the last value vs the trailing-1Y running max.
+
+    dd = value / max(trailing 1Y closes) - 1, expressed in % (<= 0; 0.0 means
+    the series is at its 1Y high). peakDate is the most recent date the high
+    was set. Derived purely from the already-fetched series — no extra calls.
+
+    Returns {"pct": -7.3, "peakDate": "2026-02-14"} or None when there isn't
+    enough data (or the peak is non-positive, where the ratio is meaningless).
+    """
+    if s is None or len(s) < 2:
+        return None
+    cutoff = s.index[-1] - pd.Timedelta(days=DRAWDOWN_WINDOW_DAYS)
+    window = s[s.index >= cutoff]
+    if window.empty:
+        return None
+    peak = float(window.max())
+    if peak <= 0:
+        return None
+    curr = float(s.iloc[-1])
+    peak_date = window[window == window.max()].index[-1]
+    return {
+        "pct": round((curr / peak - 1.0) * 100, 2),
+        "peakDate": peak_date.date().isoformat(),
+    }
 
 
 @dataclass(frozen=True)
@@ -226,6 +264,7 @@ def build_market_indicator(spec: MarketSpec) -> Optional[dict]:
         "change": change,
         "sparkline": spark,
         "percentile": pct,
+        "drawdown": compute_drawdown(s),
     }
 
 
@@ -267,6 +306,7 @@ def build_ratio_indicator(spec: RatioSpec) -> Optional[dict]:
         "change": change,
         "sparkline": spark,
         "percentile": pct,
+        "drawdown": compute_drawdown(s),
     }
 
 

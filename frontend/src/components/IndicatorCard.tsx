@@ -99,6 +99,16 @@ export function IndicatorCard({
       {ind.percentile && (
         <PercentileBar pct={ind.percentile.value} window={ind.percentile.window} />
       )}
+      {ind.drawdown && ind.drawdown.pct <= -0.5 && (
+        <div
+          className={`font-mono text-[10px] tabular-nums ${
+            ind.drawdown.pct <= -5 ? "text-down/80" : "text-chrome-muted"
+          }`}
+          title={`off the trailing-1Y high set ${ind.drawdown.peakDate}`}
+        >
+          ▼{Math.abs(ind.drawdown.pct).toFixed(1)}% off 1Y hi
+        </div>
+      )}
     </button>
   );
 }

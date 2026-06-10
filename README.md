@@ -23,8 +23,11 @@ A local, single-machine full-stack app for watching global macro markets. Two jo
   cross-asset performance in one glance.
 - Every card carries an **inline sparkline**, a **1Y / 2Y percentile gauge** with
   a hot/cold tick (95 = at year-high, 5 = at year-low), an **anomaly flag** ⚠
-  when the latest move is > ±2σ vs the trailing 30-day distribution, and a
-  **stale-data badge** if the data hasn't refreshed within the expected cadence.
+  when the latest move is > ±2σ vs the trailing 30-day distribution, a
+  **stale-data badge** if the data hasn't refreshed within the expected cadence,
+  and a **drawdown read** ("▼7.3% off 1Y hi", red-tinted when >5% off) showing
+  how far the price sits below its trailing-1Y running max — hidden when at/near
+  the high, and omitted for yields and monthly releases where it's meaningless.
 - A **UST yield-curve panel** below the Rates row plots the full 11-tenor curve
   (1M → 30Y) with toggleable historical overlays (1W ago / 1M ago / 3M ago /
   prior year-end) so you can read the *shape* and how it has shifted.
@@ -87,6 +90,26 @@ The frontend proxies `/api/*` to the backend, so you only ever browse `:5173`.
 ```bash
 make backend     # uvicorn on :8000
 make frontend    # vite on :5173
+```
+
+**Run the tests** (both suites, fully offline — every network seam is mocked):
+```bash
+make test        # backend pytest (93 tests) + frontend vitest (70 tests)
+```
+- `backend/tests/` (pytest, 93): change math (WoW/MoM/YTD, nearest-prior
+  snapping, bps for yields), drawdown, ratio derivation, percentile ranking,
+  news topic classification / dedupe / dead-feed resilience, FOMC + FRED
+  event merging, UST curve snapshot construction, the release calendar
+  window logic, and TestClient contract tests for every API route.
+- `frontend/tests/` (vitest, 70): the pure-logic modules — regime strip
+  derivation, the ±2σ anomaly detector, staleness windows, top-mover /
+  driver-headline synthesis, heatmap palette, indicator keyword & event
+  mappings, and formatting helpers.
+
+Run either side alone:
+```bash
+cd backend && ./venv/bin/python -m pytest -q tests
+cd frontend && npm run test
 ```
 
 Prefer npm? A root `npm run dev` is also wired up (uses `concurrently`):
@@ -152,9 +175,14 @@ Base URL: `http://127.0.0.1:8000`
     "ytd": { "abs": 77.65, "pct": 11.39 } // vs last close of prior year
   },
   "sparkline": [ /* last ~30 daily closes, or ~12 monthly prints for releases */ ],
-  "percentile": { "value": 78.2, "window": "1Y" } // where current sits in trailing window
+  "percentile": { "value": 78.2, "window": "1Y" }, // where current sits in trailing window
+  "drawdown": { "pct": -7.3, "peakDate": "2026-02-14" } // vs trailing-1Y running max
 }
 ```
+`drawdown` is `value / max(trailing 1Y closes) - 1` in % (`0` = at the 1Y high;
+`peakDate` is when the high was set), derived from the already-fetched series.
+Present only for price-type indicators (`changeType: "pct"` market/ratio cards);
+`null`/absent for yields (bps) and monthly FRED releases where it's meaningless.
 For **yields** (`changeType: "bps"`), `change.*.abs` is the move in **basis points**
 and `pct` is `null`. For **monthly FRED releases** (CPI, PCE, payrolls, …) the `wow`
 slot carries **change vs the prior print** and `ytd` carries **YoY** (the card labels
@@ -265,7 +293,9 @@ layout, iPad portrait + all phones get the mobile shell.
   keeps us well under upstream rate limits.
 - **Graceful degradation everywhere.** A single failing ticker, feed, or FRED
   series is logged and omitted; it never 500s an endpoint or blanks the page.
-  Missing FRED key → those panels hide + a banner shows.
+  yfinance fetches get one cheap retry (~0.5s backoff) so a transient blip
+  doesn't drop a card for a whole cache cycle. Missing FRED key → those panels
+  hide + a banner shows.
 - **DXY fallback.** If yfinance `DX-Y.NYB` returns nothing, the backend falls back
   to the FRED broad dollar index (`DTWEXBGS`) when a key is present.
 - **Equity view toggle.** The Equities section header has an Indices / ETFs
@@ -291,6 +321,7 @@ backend/
     fred.py          FRED series, releases, and release calendar
     news.py          RSS aggregation (edit FEEDS here)
   cache.py           TTL cache helper
+  tests/             offline pytest suite: math, news, events, curves, calendar, API routes
   requirements.txt
   .env.example
 frontend/            Vite + React + TS + Tailwind + Recharts
@@ -313,7 +344,9 @@ frontend/            Vite + React + TS + Tailwind + Recharts
     topics.ts                world-topic display order
     useMediaQuery.ts         compact-viewport hook (iPhone vs desktop)
     types.ts                 response shapes (mirrors backend)
-Makefile             make setup / dev / backend / frontend
+  tests/             offline vitest suite for the pure-logic modules above
+  vitest.config.ts   test-runner config (kept separate from vite.config.ts)
+Makefile             make setup / dev / backend / frontend / test (runs both suites)
 package.json         optional root `npm run dev` (concurrently)
 README.md
 ```
@@ -403,7 +436,8 @@ Things deliberately deferred but tracked for later.
     cachetools TTL cache survives because it's a long-running process).
   - Optional custom domain (`macro.<your>.com`) + Cloudflare Access or a
     Bearer token check at the API boundary since the URL becomes public.
-- Drawdown / running-max indicators on each card.
+- ~~Drawdown / running-max indicators on each card.~~ ✅ **Done** — price cards
+  now show "▼x% off 1Y hi" vs the trailing-1Y running max (see indicator shape).
 - Bond MOVE / curve volatility surfaces (no clean free source today).
 - Estimates vs actuals on the calendar (would need a paid feed).
 

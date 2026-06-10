@@ -321,6 +321,10 @@ def get_broad_dollar_fallback() -> Optional[dict]:
             return None
         return {"abs": round(curr - base, 3), "pct": round((curr - base) / base * 100, 2)}
 
+    # drawdown applies here because this is a price-style index (changeType
+    # "pct"), unlike the yield/release series elsewhere in this module
+    from .market import compute_drawdown
+
     spark = [round(float(v), 4) for v in s.iloc[-30:].tolist()]
     rank = _series_percentile(s, 252, "1Y")
     return {
@@ -339,6 +343,7 @@ def get_broad_dollar_fallback() -> Optional[dict]:
         },
         "sparkline": spark,
         "percentile": rank,
+        "drawdown": compute_drawdown(s),
     }
 
 

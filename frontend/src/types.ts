@@ -32,6 +32,10 @@ export interface Indicator {
   // Where the current value sits in its trailing window (0–100 rank).
   // window is "1Y" for daily series, "2Y" for monthly release series.
   percentile?: { value: number; window: string } | null;
+  // Drawdown from the trailing-1Y running max: pct <= 0 (0 == at the high),
+  // peakDate is when the high was set. Only present for price-type market
+  // indicators (changeType "pct"); null/absent for yields and monthly releases.
+  drawdown?: { pct: number; peakDate: string } | null;
   meta?: {
     priorPrint?: number | null;
     changeLabels?: Partial<Record<"wow" | "mom" | "ytd", string>>;

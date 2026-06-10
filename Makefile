@@ -4,13 +4,14 @@
 #   make backend   run FastAPI on :8000
 #   make frontend  run Vite on :5173
 #   make dev       run BOTH (Ctrl-C stops both)
+#   make test      run both test suites (backend pytest + frontend vitest, offline)
 
 SHELL := /bin/bash
 PY := python3
 VENV := backend/venv
 PYBIN := $(VENV)/bin
 
-.PHONY: setup backend frontend dev clean
+.PHONY: setup backend frontend dev test clean
 
 setup:
 	@echo ">> creating venv + installing backend deps"
@@ -26,6 +27,12 @@ backend:
 
 frontend:
 	cd frontend && npm run dev
+
+test:
+	@echo ">> backend tests (pytest)"
+	cd backend && ./venv/bin/python -m pytest -q tests
+	@echo ">> frontend tests (vitest)"
+	cd frontend && npm run --silent test
 
 dev:
 	@echo ">> starting backend (:8000) and frontend (:5173). Ctrl-C to stop both."
