@@ -11,6 +11,20 @@ import react from "@vitejs/plugin-react";
 // dashboard URL is exposed across interfaces, not the raw API.
 export default defineConfig({
   plugins: [react()],
+  build: {
+    // Split the heavy vendor deps into their own cacheable chunks so the
+    // app bundle stays small and a code change doesn't re-download recharts.
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: "vendor-charts", test: /node_modules[\\/](recharts|d3-|victory-vendor)/ },
+            { name: "vendor-react", test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
+          ],
+        },
+      },
+    },
+  },
   server: {
     host: true,
     port: 5173,
