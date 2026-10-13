@@ -1,25 +1,28 @@
 // Reactive matchMedia hook. Pass a media query, get a boolean that updates
 // on resize / orientation change.
-import { useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
+
+// Subscribe to changes of `query`; returns the unsubscribe function.
+export function subscribeMediaQuery(query: string, onChange: () => void): () => void {
+  const m = window.matchMedia(query);
+  m.addEventListener("change", onChange);
+  return () => m.removeEventListener("change", onChange);
+}
+
+export function getMediaQuerySnapshot(query: string): boolean {
+  return window.matchMedia(query).matches;
+}
+
+// No window during SSR/prerender: report "no match".
+const getServerSnapshot = () => false;
 
 export function useMediaQuery(query: string): boolean {
-  const [match, setMatch] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return window.matchMedia(query).matches;
-  });
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const m = window.matchMedia(query);
-    const handler = (e: MediaQueryListEvent) => setMatch(e.matches);
-    m.addEventListener("change", handler);
-    // Resync when `query` changes; the initializer only ran for the first one.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMatch(m.matches);
-    return () => m.removeEventListener("change", handler);
-  }, [query]);
-
-  return match;
+  // useSyncExternalStore reads the current value during render (so a new
+  // `query` is reflected immediately, with no extra effect-driven render) and
+  // re-subscribes whenever `query` changes.
+  const subscribe = useCallback((onChange: () => void) => subscribeMediaQuery(query, onChange), [query]);
+  const getSnapshot = useCallback(() => getMediaQuerySnapshot(query), [query]);
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
 // Treats anything below the Tailwind `lg` breakpoint as "compact" — that's

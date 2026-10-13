@@ -18,7 +18,7 @@ export function NewsFeed() {
 
   const [filter, setFilter] = useState<Filter>(ALL);
 
-  const items: NewsItem[] = data?.items ?? [];
+  const items: NewsItem[] = useMemo(() => data?.items ?? [], [data]);
 
   // Per-topic counts for the tab badges. "All" = total.
   const counts = useMemo(() => {

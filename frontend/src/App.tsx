@@ -208,7 +208,7 @@ export default function App() {
   });
   const newsCount = newsQuery.data?.count ?? 0;
 
-  const indicators = data?.indicators ?? [];
+  const indicators = useMemo(() => data?.indicators ?? [], [data]);
   const fredEnabled = data?.fredEnabled ?? false;
 
   const grouped = useMemo(() => {

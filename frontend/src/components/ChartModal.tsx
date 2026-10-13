@@ -15,6 +15,7 @@ import { RANGES, type EventItem, type Indicator, type NewsItem, type RangeKey } 
 import { formatValue } from "../format";
 import { findRelatedNews } from "../indicator-keywords";
 import { getEventTypeForIndicator } from "../indicator-events";
+import { releaseWindow } from "../release-window";
 import { useIsCompact } from "../useMediaQuery";
 import { NewsRow } from "./NewsFeed";
 
@@ -69,7 +70,7 @@ export function ChartModal({
     queryFn: api.news,
     staleTime: 5 * 60_000,
   });
-  const allNews: NewsItem[] = newsQuery.data?.items ?? [];
+  const allNews: NewsItem[] = useMemo(() => newsQuery.data?.items ?? [], [newsQuery.data]);
   const related = useMemo(() => findRelatedNews(allNews, ind.id), [allNews, ind.id]);
 
   // Cached: same key as App's indicators query, so this is a free read used
@@ -269,7 +270,7 @@ function ChartView({
 
   const [showEvents, setShowEvents] = useState(true);
 
-  const points = data?.points ?? [];
+  const points = useMemo(() => data?.points ?? [], [data]);
   const values = points.map((p) => p.value);
   const min = values.length ? Math.min(...values) : 0;
   const max = values.length ? Math.max(...values) : 1;
@@ -478,13 +479,10 @@ function daysBetween(aIso: string, bIso: string): number {
 
 function ReleaseContextStrip({ indId }: { indId: string }) {
   const eventType = getEventTypeForIndicator(indId);
-  // Window: 90d back + 60d forward — wide enough to catch the surrounding pair.
-  const today = isoToday();
-  // Day-granularity dates, so re-renders within a day produce the same query key.
-  // eslint-disable-next-line react-hooks/purity
-  const from = new Date(Date.now() - 90 * 86400_000).toISOString().slice(0, 10);
-  // eslint-disable-next-line react-hooks/purity
-  const to = new Date(Date.now() + 60 * 86400_000).toISOString().slice(0, 10);
+  // Read the clock once, when the strip mounts (render must stay pure); the
+  // window is derived from that day, so the query key is stable.
+  const [today] = useState(isoToday);
+  const { from, to } = releaseWindow(today);
   const q = useQuery({
     queryKey: ["events", from, to],
     queryFn: () => api.events(from, to),
