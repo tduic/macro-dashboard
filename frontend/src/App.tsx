@@ -1,17 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
 import type { EquityView, Indicator } from "./types";
 import { formatClock } from "./format";
 import { IndicatorCard } from "./components/IndicatorCard";
-import { ChartModal } from "./components/ChartModal";
 import { NewsFeed } from "./components/NewsFeed";
 import { CalendarPanel } from "./components/CalendarPanel";
 import { RegimeStrip } from "./components/RegimeStrip";
 import { HeatmapGrid } from "./components/HeatmapGrid";
 import { DailySummary } from "./components/DailySummary";
-import { YieldCurvePanel } from "./components/YieldCurvePanel";
 import { useIsCompact } from "./useMediaQuery";
+
+// The two Recharts components (and the ~105 kB gz chart vendor chunk they pull
+// in) load on demand, off the first-paint path; App warms them after mount.
+const loadChartModal = () => import("./components/ChartModal");
+const loadYieldCurvePanel = () => import("./components/YieldCurvePanel");
+const ChartModal = lazy(() => loadChartModal().then((m) => ({ default: m.ChartModal })));
+const YieldCurvePanel = lazy(() => loadYieldCurvePanel().then((m) => ({ default: m.YieldCurvePanel })));
 
 type ViewMode = "grid" | "heatmap";
 type MobileTab = "markets" | "news";
@@ -171,6 +176,11 @@ export default function App() {
   const [selected, setSelected] = useState<Indicator | null>(null);
   const isCompact = useIsCompact();
 
+  useEffect(() => {
+    loadChartModal().catch(() => {});
+    loadYieldCurvePanel().catch(() => {});
+  }, []);
+
   // Equities toggle (persisted)
   const [equityView, setEquityView] = useState<EquityView>(() => {
     if (typeof window === "undefined") return "index";
@@ -262,7 +272,9 @@ export default function App() {
                 </div>
                 {category === "Rates" && fredEnabled && (
                   <div className="mt-3">
-                    <YieldCurvePanel />
+                    <Suspense fallback={null}>
+                      <YieldCurvePanel />
+                    </Suspense>
                   </div>
                 )}
               </section>
@@ -345,7 +357,11 @@ export default function App() {
         <MobileTabBar value={mobileTab} onChange={setMobileTab} newsCount={newsCount} />
       )}
 
-      {selected && <ChartModal ind={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <Suspense fallback={null}>
+          <ChartModal ind={selected} onClose={() => setSelected(null)} />
+        </Suspense>
+      )}
     </div>
   );
 }

@@ -17,9 +17,12 @@ export default defineConfig({
     rolldownOptions: {
       output: {
         codeSplitting: {
+          // Groups also capture their dependencies, so vendor-react must come
+          // first: listed after vendor-charts, React itself landed in the chart
+          // chunk and every page load had to fetch Recharts.
           groups: [
-            { name: "vendor-charts", test: /node_modules[\\/](recharts|d3-|victory-vendor)/ },
             { name: "vendor-react", test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
+            { name: "vendor-charts", test: /node_modules[\\/](recharts|d3-|victory-vendor)/ },
           ],
         },
       },
