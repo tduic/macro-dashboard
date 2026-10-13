@@ -20,13 +20,22 @@ import { NewsRow } from "./NewsFeed";
 
 type Tab = "chart" | "news";
 
+// Recharts injects `active` and `payload` into a custom tooltip `content` element.
+type ChartTooltipProps = {
+  active?: boolean;
+  payload?: { payload: { date: string; value: number; compare?: number | null } }[];
+  unit: string;
+  compareUnit?: string;
+  compareLabel?: string;
+};
+
 function ChartTooltip({
   active,
   payload,
   unit,
   compareUnit,
   compareLabel,
-}: any) {
+}: ChartTooltipProps) {
   if (!active || !payload || !payload.length) return null;
   const p = payload[0].payload;
   return (
@@ -471,7 +480,10 @@ function ReleaseContextStrip({ indId }: { indId: string }) {
   const eventType = getEventTypeForIndicator(indId);
   // Window: 90d back + 60d forward — wide enough to catch the surrounding pair.
   const today = isoToday();
+  // Day-granularity dates, so re-renders within a day produce the same query key.
+  // eslint-disable-next-line react-hooks/purity
   const from = new Date(Date.now() - 90 * 86400_000).toISOString().slice(0, 10);
+  // eslint-disable-next-line react-hooks/purity
   const to = new Date(Date.now() + 60 * 86400_000).toISOString().slice(0, 10);
   const q = useQuery({
     queryKey: ["events", from, to],

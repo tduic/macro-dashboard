@@ -13,6 +13,8 @@ export function useMediaQuery(query: string): boolean {
     const m = window.matchMedia(query);
     const handler = (e: MediaQueryListEvent) => setMatch(e.matches);
     m.addEventListener("change", handler);
+    // Resync when `query` changes; the initializer only ran for the first one.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMatch(m.matches);
     return () => m.removeEventListener("change", handler);
   }, [query]);
