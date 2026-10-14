@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "./api";
+import { api, IS_SNAPSHOT } from "./api";
 import type { EquityView, Indicator } from "./types";
 import { formatClock } from "./format";
 import { IndicatorCard } from "./components/IndicatorCard";
@@ -10,6 +10,8 @@ import { RegimeStrip } from "./components/RegimeStrip";
 import { HeatmapGrid } from "./components/HeatmapGrid";
 import { DailySummary } from "./components/DailySummary";
 import { useIsCompact } from "./useMediaQuery";
+import { snapshotNote } from "./snapshot-note";
+import type { SnapshotMeta } from "./types";
 
 // The two Recharts components (and the ~105 kB gz chart vendor chunk they pull
 // in) load on demand, off the first-paint path; App warms them after mount.
@@ -110,6 +112,14 @@ function EquityViewToggle({
 }
 
 function FredBanner() {
+  if (IS_SNAPSHOT) {
+    return (
+      <div className="rounded border border-yellow-600/40 bg-yellow-900/20 px-3 py-2 text-xs text-yellow-200">
+        This build was generated without a FRED key, so Rates, Economic Data, the yield curve and
+        the Economic Calendar are not included.
+      </div>
+    );
+  }
   return (
     <div className="rounded border border-yellow-600/40 bg-yellow-900/20 px-3 py-2 text-xs text-yellow-200">
       <span className="font-semibold">FRED key not set.</span> Rates, Economic Data, and the
@@ -117,6 +127,27 @@ function FredBanner() {
       <code className="rounded bg-black/40 px-1">backend/.env</code> as{" "}
       <code className="rounded bg-black/40 px-1">FRED_API_KEY=…</code> and restart the backend. See
       the README for how to get one.
+    </div>
+  );
+}
+
+// Static build only: says when the data was fetched, on every viewport.
+function SnapshotBar({ meta }: { meta: SnapshotMeta }) {
+  // Read the clock once per mount; the age label doesn't need to tick.
+  const [now] = useState(() => Date.now());
+  const note = snapshotNote(meta, now);
+  return (
+    <div
+      role="note"
+      title={note.detail}
+      className={`relative overflow-hidden border-t px-4 py-0.5 text-center font-mono text-[10px] leading-5 lg:h-6 lg:truncate lg:py-0 lg:text-[11px] lg:leading-6 ${
+        note.tone === "fixture"
+          ? "border-yellow-600/40 bg-yellow-900/30 text-yellow-200"
+          : "border-chrome-border text-chrome-muted"
+      }`}
+    >
+      {note.text}
+      <span className="sr-only">. {note.detail}</span>
     </div>
   );
 }
@@ -207,8 +238,16 @@ export default function App() {
   const { data, isLoading, isError, dataUpdatedAt, isFetching } = useQuery({
     queryKey: ["indicators"],
     queryFn: api.indicators,
-    refetchInterval: 60_000, // auto-refresh market data every 60s
-    staleTime: 30_000,
+    // auto-refresh market data every 60s (live only; a snapshot never changes)
+    refetchInterval: IS_SNAPSHOT ? false : 60_000,
+    staleTime: IS_SNAPSHOT ? Infinity : 30_000,
+  });
+
+  const snapshotMetaQuery = useQuery({
+    queryKey: ["snapshot-meta"],
+    queryFn: api.snapshotMeta,
+    enabled: IS_SNAPSHOT,
+    staleTime: Infinity,
   });
 
   const newsQuery = useQuery({
@@ -245,7 +284,9 @@ export default function App() {
         <div className="py-20 text-center text-sm text-chrome-muted">loading markets…</div>
       ) : isError ? (
         <div className="py-20 text-center text-sm text-down">
-          failed to load indicators — is the backend running on :8000?
+          {IS_SNAPSHOT
+            ? "failed to load the data snapshot"
+            : "failed to load indicators — is the backend running on :8000?"}
         </div>
       ) : (
         <>
@@ -307,20 +348,25 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <ViewToggle value={viewMode} onChange={setViewMode} />
-            <span className="hidden font-mono text-[11px] text-chrome-muted sm:inline">
-              {isFetching
-                ? "refreshing…"
-                : `updated ${formatClock(new Date(dataUpdatedAt).toISOString())}`}
-            </span>
-            <button
-              onClick={handleRefresh}
-              aria-label="Refresh"
-              className="flex min-h-[36px] min-w-[36px] items-center justify-center rounded border border-chrome-border px-2.5 py-1 font-mono text-xs text-chrome-text hover:border-chrome-muted hover:text-white active:bg-chrome-card"
-            >
-              ↻<span className="ml-1 hidden sm:inline">refresh</span>
-            </button>
+            {!IS_SNAPSHOT && (
+              <>
+                <span className="hidden font-mono text-[11px] text-chrome-muted sm:inline">
+                  {isFetching
+                    ? "refreshing…"
+                    : `updated ${formatClock(new Date(dataUpdatedAt).toISOString())}`}
+                </span>
+                <button
+                  onClick={handleRefresh}
+                  aria-label="Refresh"
+                  className="flex min-h-[36px] min-w-[36px] items-center justify-center rounded border border-chrome-border px-2.5 py-1 font-mono text-xs text-chrome-text hover:border-chrome-muted hover:text-white active:bg-chrome-card"
+                >
+                  ↻<span className="ml-1 hidden sm:inline">refresh</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
+        {snapshotMetaQuery.data && <SnapshotBar meta={snapshotMetaQuery.data} />}
       </header>
 
       <main
@@ -346,7 +392,14 @@ export default function App() {
           // Desktop: side-by-side layout
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_360px]">
             {markets}
-            <aside className="lg:sticky lg:top-[57px] lg:h-[calc(100vh-73px)]">
+            <aside
+              className={
+                // the snapshot bar adds 25px (lg:h-6 + border) to the sticky header
+                IS_SNAPSHOT
+                  ? "lg:sticky lg:top-[82px] lg:h-[calc(100vh-98px)]"
+                  : "lg:sticky lg:top-[57px] lg:h-[calc(100vh-73px)]"
+              }
+            >
               <NewsFeed />
             </aside>
           </div>

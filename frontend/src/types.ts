@@ -123,3 +123,20 @@ export interface UstCurveResponse {
   tenors?: string[];
   curves?: Record<CurveSnapshotKey, CurvePoint[]>;
 }
+
+// meta.json of a static snapshot (backend/snapshot.py), read in snapshot mode.
+export interface SnapshotMeta {
+  format: number;
+  generatedAt: string; // ISO timestamp of the build that fetched the data
+  // "live" = fetched from the real upstreams at build time;
+  // "fixture" = offline test fakes (CI / screenshots only, never deployed)
+  source: "live" | "fixture";
+  fredEnabled: boolean;
+  categories: string[];
+  lastRefreshed: string;
+  indicatorCount: number;
+  newsCount: number;
+  ranges: RangeKey[];
+  history: Record<string, RangeKey[]>; // indicator id -> ranges with a file
+  eventsWindow: { from: string; to: string };
+}

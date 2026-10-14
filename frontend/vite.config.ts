@@ -9,8 +9,17 @@ import react from "@vitejs/plugin-react";
 // 127.0.0.1 (Makefile / `make dev`); browser traffic comes through Vite,
 // which proxies /api to the local FastAPI process. Net result: only the
 // dashboard URL is exposed across interfaces, not the raw API.
-export default defineConfig({
+//
+// `vite build --mode static` (npm run build:static) produces the serverless
+// public build: api.ts reads the JSON that backend/snapshot.py wrote to
+// public/snapshot/ instead of calling /api/*. Setting VITE_DATA_MODE=snapshot
+// in the environment does the same for any command.
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
+  define:
+    mode === "static"
+      ? { "import.meta.env.VITE_DATA_MODE": JSON.stringify("snapshot") }
+      : {},
   build: {
     // Split the heavy vendor deps into their own cacheable chunks so the
     // app bundle stays small and a code change doesn't re-download recharts.
@@ -42,4 +51,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));
