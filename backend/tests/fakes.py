@@ -89,7 +89,7 @@ RELEASES = {
 RELEASE_DAY = {10: 14, 46: 15, 9: 16, 54: 27, 53: 29}
 
 HEADLINES: list[tuple[str, str]] = [
-    ("Treasury yields edge higher ahead of inflation data", "Markets"),
+    ("Treasury yields slip ahead of inflation data", "Markets"),
     ("Natural gas jumps as cold-weather forecasts tighten supply outlook", "Markets"),
     ("Cocoa slides as West African harvest estimates improve", "Markets"),
     ("Stocks drift as investors weigh Fed rate path", "Markets"),
