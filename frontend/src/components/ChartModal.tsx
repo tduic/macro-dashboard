@@ -424,6 +424,8 @@ function ChartView({
                 return (
                   <ReferenceLine
                     key={`${e.date}-${e.type}-${i}`}
+                    // must name the (only, "left") y-axis or Recharts drops the line
+                    yAxisId="left"
                     x={e.date}
                     stroke={st.stroke}
                     strokeOpacity={st.opacity}
