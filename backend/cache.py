@@ -21,6 +21,7 @@ cached independently. Thread-safe enough for uvicorn's default worker model
 from __future__ import annotations
 
 import functools
+import os
 import threading
 from typing import Any, Callable
 
@@ -41,6 +42,20 @@ DEFAULT_TTLS = {
 }
 
 
+def min_ttl() -> int:
+    """Floor applied to every TTL, read from MACRO_CACHE_MIN_TTL (seconds).
+
+    0 (the default) leaves the per-bucket TTLs alone. The static snapshot
+    script raises it so one build run never re-downloads a ticker just
+    because the 60s market TTL lapsed halfway through. Read when a function
+    is decorated, so it must be set before the data modules are imported.
+    """
+    try:
+        return max(0, int(os.environ.get("MACRO_CACHE_MIN_TTL", "0")))
+    except ValueError:
+        return 0
+
+
 def _get_bucket(name: str, ttl: int, maxsize: int = 512) -> tuple[TTLCache, threading.Lock]:
     with _global_lock:
         if name not in _caches:
@@ -52,6 +67,7 @@ def _get_bucket(name: str, ttl: int, maxsize: int = 512) -> tuple[TTLCache, thre
 def cached(bucket: str, ttl: int | None = None, maxsize: int = 512) -> Callable:
     """Decorator: cache a function's return value in the named bucket."""
     resolved_ttl = ttl if ttl is not None else DEFAULT_TTLS.get(bucket, 60)
+    resolved_ttl = max(resolved_ttl, min_ttl())
 
     def decorator(func: Callable) -> Callable:
         cache, lock = _get_bucket(bucket, resolved_ttl, maxsize)
