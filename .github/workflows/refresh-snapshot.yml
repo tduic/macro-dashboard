@@ -1,0 +1,31 @@
+name: Refresh public snapshot
+
+# The public build is a static snapshot taken at deploy time. This re-runs the
+# Vercel deployment on a schedule so the data stays recent. It needs a Vercel
+# Deploy Hook URL saved as the repository secret VERCEL_DEPLOY_HOOK_URL
+# (Vercel project -> Settings -> Git -> Deploy Hooks). Without the secret the
+# job does nothing and passes.
+
+on:
+  schedule:
+    - cron: "17 21 * * 1-5" # weekdays, after the US cash close
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger Vercel deploy hook
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "VERCEL_DEPLOY_HOOK_URL not set; skipping."
+            exit 0
+          fi
+          curl -fsS -X POST "$HOOK" > /dev/null
+          echo "deploy hook triggered"

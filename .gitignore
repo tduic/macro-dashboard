@@ -34,6 +34,11 @@ node_modules/
 **/node_modules/
 frontend/dist/
 dist/
+# Static-build data: written by backend/snapshot.py at build time (Vercel) or
+# by tests/fixture_snapshot.py from offline fakes (CI). Never committed.
+frontend/public/snapshot/
+.venv-build/
+.vercel/
 .vite/
 .cache/
 

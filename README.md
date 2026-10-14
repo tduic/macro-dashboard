@@ -1,6 +1,8 @@
 # Macro Desk — Global Macro Dashboard
 
-A local, single-machine full-stack app for watching global macro markets. Two jobs:
+A full-stack app for watching global macro markets. It runs locally against a
+FastAPI backend, and also ships as a serverless static build for public hosting
+(see [Public build](#public-build)). Two jobs:
 
 1. **Markets dashboard** — the key numbers you watch (equities, rates, FX, energy,
    metals, ags/softs, economic data, crypto) with current value + **WoW / MoM / YTD**
@@ -51,7 +53,8 @@ Dark, dense, terminal-style UI. Monospace numbers, green/red deltas, muted chrom
 | Caching   | In-memory TTL cache (`cachetools`): market ~60s, FRED ~6h, news ~10min, calendar ~6h |
 | Config    | `.env` for `FRED_API_KEY` (optional — app runs without it) |
 
-No database, no auth, no deployment config — clean single-shot local app.
+No database, no auth. Runs locally, or as a static snapshot on Vercel with no
+server at all (see [Public build](#public-build)).
 
 ---
 
@@ -94,17 +97,19 @@ make frontend    # vite on :5173
 
 **Run the tests** (both suites, fully offline — every network seam is mocked):
 ```bash
-make test        # backend pytest (93 tests) + frontend vitest (70 tests)
+make test        # backend pytest (144 tests) + frontend vitest (103 tests)
 ```
-- `backend/tests/` (pytest, 93): change math (WoW/MoM/YTD, nearest-prior
+- `backend/tests/` (pytest, 144): change math (WoW/MoM/YTD, nearest-prior
   snapping, bps for yields), drawdown, ratio derivation, percentile ranking,
   news topic classification / dedupe / dead-feed resilience, FOMC + FRED
   event merging, UST curve snapshot construction, the release calendar
-  window logic, and TestClient contract tests for every API route.
-- `frontend/tests/` (vitest, 70): the pure-logic modules — regime strip
+  window logic, TestClient contract tests for every API route, and the
+  static snapshot exporter (run end to end against deterministic fakes).
+- `frontend/tests/` (vitest, 103): the pure-logic modules — regime strip
   derivation, the ±2σ anomaly detector, staleness windows, top-mover /
   driver-headline synthesis, heatmap palette, indicator keyword & event
-  mappings, and formatting helpers.
+  mappings, formatting helpers, and both data sources in `api.ts` (live
+  `/api/*` and the static snapshot reader).
 
 Run either side alone:
 ```bash
@@ -138,6 +143,58 @@ To enable them:
    ```
 4. Restart the backend (`make backend` or `make dev`). The Rates / Economic Data /
    Calendar panels light up automatically.
+
+---
+
+## Public build
+
+The same frontend can be published as a static site with no backend, for free
+hosting. At build time `backend/snapshot.py` calls every API route in-process
+(FastAPI `TestClient`, so the production code paths and response shapes are
+reused) and writes the responses to `frontend/public/snapshot/`:
+`indicators.json`, `news.json`, `calendar.json`, `curves-ust.json`, one wide
+`events.json`, and `history/<ID>/<RANGE>.json` for every indicator and every
+chart range. `npm run build:static` (Vite `--mode static`, which sets
+`VITE_DATA_MODE=snapshot`) builds a frontend whose `api.ts` reads those files
+instead of `/api/*`.
+
+What changes in the static build:
+- A strip under the header says when the data was fetched ("Static snapshot ·
+  data as of … · not live"). The 60s auto-refresh and the ↻ button are gone.
+- Chart history, the compare overlay and FOMC / release markers all still
+  work, because every history range is pre-exported (about 4 MB of JSON, served
+  gzipped) and events are filtered client-side from one file.
+- Calendar releases that have passed since the build are dropped.
+
+**Vercel.** `vercel.json` at the repo root makes a Vercel project connected to
+this repo deploy it with no dashboard settings: the install step
+(`scripts/vercel-install.sh`) creates a venv with the backend deps and runs
+`npm ci`, the build step (`scripts/build-static.sh`) runs the snapshot and then
+`build:static`, and `frontend/dist` is served. If fewer than 10 indicators come
+back (upstreams down or rate-limiting the build machine) the snapshot exits
+non-zero, the build fails, and the previous deployment stays live.
+
+**Environment.** The only variable read is `FRED_API_KEY`, optional, from the
+build environment (Vercel → Project → Settings → Environment Variables). It is
+used during the build only and never written into the output; without it the
+Rates, Economic Data, yield-curve and calendar panels are left out and a note
+says so. Never commit a key; `.env` files are gitignored.
+
+**Keeping it fresh.** The snapshot is as old as the last deploy.
+`.github/workflows/refresh-snapshot.yml` redeploys on weekdays after the US
+close if the repo has a `VERCEL_DEPLOY_HOOK_URL` secret (a Vercel Deploy Hook);
+without it the workflow is a no-op.
+
+**Locally:**
+```bash
+make static           # live snapshot + static build -> frontend/dist
+make static-fixture   # same, from the offline test fakes (no network)
+cd frontend && npx vite preview --mode static
+```
+`make static-fixture` writes synthetic data from `backend/tests/fakes.py`
+(seeded random walks, "Fixture wire" headlines on example.com) and the page
+labels it "Test fixture data, not market data". CI builds this variant; it is
+never what gets deployed. `frontend/public/snapshot/` is gitignored.
 
 ---
 
@@ -321,7 +378,11 @@ backend/
     fred.py          FRED series, releases, and release calendar
     news.py          RSS aggregation (edit FEEDS here)
   cache.py           TTL cache helper
-  tests/             offline pytest suite: math, news, events, curves, calendar, API routes
+  snapshot.py        static-build exporter: every route -> frontend/public/snapshot/*.json
+  tests/             offline pytest suite: math, news, events, curves, calendar, API routes,
+                     snapshot exporter
+    fakes.py         deterministic fake upstreams (yfinance / FRED / RSS)
+    fixture_snapshot.py  snapshot from the fakes (CI + screenshots)
   requirements.txt
   .env.example
 frontend/            Vite + React + TS + Tailwind + Recharts
@@ -344,9 +405,13 @@ frontend/            Vite + React + TS + Tailwind + Recharts
     topics.ts                world-topic display order
     useMediaQuery.ts         compact-viewport hook (iPhone vs desktop)
     types.ts                 response shapes (mirrors backend)
+    api.ts                   data source: live /api/* or the static snapshot
+    snapshot-note.ts         "data as of" wording for the static build
   tests/             offline vitest suite for the pure-logic modules above
   vitest.config.ts   test-runner config (kept separate from vite.config.ts)
-Makefile             make setup / dev / backend / frontend / test (runs both suites)
+Makefile             make setup / dev / backend / frontend / test / static / static-fixture
+vercel.json          zero-config Vercel deploy of the static build
+scripts/             vercel-install.sh + build-static.sh (used by vercel.json and make static)
 package.json         optional root `npm run dev` (concurrently)
 README.md
 ```
@@ -428,9 +493,8 @@ For LAN access without Tailscale, substitute the host's Wi-Fi IP
 
 Things deliberately deferred but tracked for later.
 
-- **Proper deploy.** Today the app runs on the host machine and is reachable
-  remotely via Tailscale Serve (`https://<machine>.<tailnet>.ts.net/`). To be
-  truly always-on without the host being awake, split the deploy:
+- **Live deploy.** The [public build](#public-build) is a static snapshot.
+  For a live, always-on version without the host being awake, split the deploy:
   - **Frontend** → Vercel (Vite static build, free tier).
   - **Backend** → Fly.io or Railway (single Python container, the existing
     cachetools TTL cache survives because it's a long-running process).

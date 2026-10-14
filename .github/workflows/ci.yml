@@ -33,7 +33,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Compile
-        run: python -m compileall -q main.py cache.py data tests
+        run: python -m compileall -q main.py cache.py snapshot.py data tests
 
       - name: Run tests
         run: python -m pytest -v tests
@@ -66,3 +66,63 @@ jobs:
 
       - name: Type check and build
         run: npm run build
+
+  # The public build: export a snapshot through the real route handlers (with
+  # every upstream faked, so no network), then build the frontend in snapshot
+  # mode against it. Mirrors what Vercel runs, minus the live fetches.
+  static-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.15
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.15"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Check deploy config
+        run: |
+          python -m json.tool vercel.json > /dev/null
+          bash -n scripts/vercel-install.sh
+          bash -n scripts/build-static.sh
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          npm ci --prefix frontend
+
+      - name: Write fixture snapshot (offline fakes)
+        working-directory: backend
+        run: python -m tests.fixture_snapshot
+
+      - name: Build static frontend
+        run: npm run build:static --prefix frontend
+
+      - name: Verify the static bundle
+        run: |
+          python - <<'PY'
+          import glob, json, pathlib
+          dist = pathlib.Path("frontend/dist")
+          meta = json.loads((dist / "snapshot" / "meta.json").read_text())
+          assert meta["source"] == "fixture", meta["source"]
+          assert meta["indicatorCount"] > 40, meta["indicatorCount"]
+          for ind, ranges in meta["history"].items():
+              for r in ranges:
+                  assert (dist / "snapshot" / "history" / ind / f"{r}.json").is_file(), (ind, r)
+          js = "".join(pathlib.Path(p).read_text() for p in glob.glob(str(dist / "assets" / "*.js")))
+          assert "snapshot/" in js, "snapshot reader missing from bundle"
+          assert "/api/indicators" not in js, "static bundle still calls the live API"
+          print("static bundle ok:", meta["indicatorCount"], "indicators,", len(meta["history"]), "with history")
+          PY

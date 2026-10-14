@@ -5,13 +5,15 @@
 #   make frontend  run Vite on :5173
 #   make dev       run BOTH (Ctrl-C stops both)
 #   make test      run both test suites (backend pytest + frontend vitest, offline)
+#   make static    public build: live snapshot -> frontend/dist (what Vercel runs)
+#   make static-fixture  same, from the offline test fakes (no network)
 
 SHELL := /bin/bash
 PY := python3
 VENV := backend/venv
 PYBIN := $(VENV)/bin
 
-.PHONY: setup backend frontend dev test clean
+.PHONY: setup backend frontend dev test static static-fixture clean
 
 setup:
 	@echo ">> creating venv + installing backend deps"
@@ -34,6 +36,13 @@ test:
 	@echo ">> frontend tests (vitest)"
 	cd frontend && npm run --silent test
 
+static:
+	PYTHON=$(PYBIN)/python bash scripts/build-static.sh
+
+static-fixture:
+	cd backend && ./venv/bin/python -m tests.fixture_snapshot
+	cd frontend && npm run build:static
+
 dev:
 	@echo ">> starting backend (:8000) and frontend (:5173). Ctrl-C to stop both."
 	@trap 'kill 0' EXIT INT TERM; \
@@ -42,4 +51,4 @@ dev:
 	wait
 
 clean:
-	rm -rf backend/venv frontend/node_modules frontend/dist
+	rm -rf backend/venv frontend/node_modules frontend/dist frontend/public/snapshot .venv-build
