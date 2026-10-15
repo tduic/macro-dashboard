@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
@@ -11,7 +12,7 @@ permissions:
 
 jobs:
   backend:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER == 'local' && fromJSON('["self-hosted","linux","ARM64","tduic-local"]') || 'ubuntu-latest' }}
     timeout-minutes: 15
     defaults:
       run:
@@ -39,7 +40,7 @@ jobs:
         run: python -m pytest -v tests
 
   frontend:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER == 'local' && fromJSON('["self-hosted","linux","ARM64","tduic-local"]') || 'ubuntu-latest' }}
     timeout-minutes: 10
     defaults:
       run:
@@ -71,7 +72,7 @@ jobs:
   # every upstream faked, so no network), then build the frontend in snapshot
   # mode against it. Mirrors what Vercel runs, minus the live fetches.
   static-build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER == 'local' && fromJSON('["self-hosted","linux","ARM64","tduic-local"]') || 'ubuntu-latest' }}
     timeout-minutes: 15
 
     steps:
