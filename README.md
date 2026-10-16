@@ -61,8 +61,8 @@ server at all (see [Public build](#public-build)).
 ## Quick start
 
 ### Prerequisites
-- Python **3.11+** (tested on 3.14)
-- Node **18+** (tested on 24) + npm
+- Python **3.11+** (tested on 3.15)
+- Node **24 LTS** + npm (CI and Vercel run 24.x; TypeScript stays on 6.0 until typescript-eslint supports 7)
 
 ### One-time setup
 ```bash
